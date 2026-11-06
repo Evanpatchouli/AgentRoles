@@ -50,6 +50,9 @@ interface Session {
   title: string              // 首条用户消息自动生成
   createdAt: number
   updatedAt: number
+  customTitle?: boolean      // 手动重命名后不再自动覆盖
+  pinned?: boolean           // 侧边栏优先显示
+  archived?: boolean         // 收进“已归档”分组
 }
 
 interface ChatMessage {
@@ -101,6 +104,7 @@ sequenceDiagram
 - 历史窗口按「最近 40 条 + 约 12 万字符」裁剪，工具结果在送给模型前截断到 8000 字符。
 - 运行中收到新消息：同一会话串行排队；不同会话、不同角色可以并行。
 - 每条会话拥有独立的运行队列、上下文窗口与运行状态；「新会话」只新建线程，不清空历史。
+- 会话支持右键重命名、置顶与归档；归档会话保留历史，但不再出现在外部接入的会话列表中。
 - 停止：中止当前会话请求，触发消息回到 pending，可重试。
 
 ## 4. 模型适配

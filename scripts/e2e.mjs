@@ -157,6 +157,8 @@ try {
   console.log('[e2e] assistant replied with tool loop')
 
   const userMessage = page.locator('.msg-user').first()
+  await page.mouse.move(1200, 840)
+  await page.waitForTimeout(150)
   const copyOpacity = await page
     .locator('.msg-user .msg-copy')
     .first()
@@ -321,6 +323,124 @@ try {
     .filter({ hasText: 'AgentRoles 项目启动' })
     .click()
   console.log('[e2e] ingress session routing OK')
+
+  // 会话右键菜单：定位、图标左置、文字右对齐、重命名/置顶/归档
+  await page.locator('.agent-actions .btn').filter({ hasText: '新会话' }).click()
+  await page.waitForSelector('.chat-empty')
+  const menuTarget = page.locator('.session-main').filter({ hasText: '新会话' }).first()
+  await menuTarget.waitFor()
+
+  const targetBox = await menuTarget.boundingBox()
+  assert.ok(targetBox)
+  const topClick = { x: targetBox.x + 30, y: targetBox.y + 10 }
+  await menuTarget.evaluate(
+    (element, point) =>
+      element.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+          clientX: point.x,
+          clientY: point.y
+        })
+      ),
+    topClick
+  )
+  await page.waitForSelector('.session-menu')
+  await page.waitForTimeout(120)
+  const topMenuBox = await page.locator('.session-menu').boundingBox()
+  assert.ok(topMenuBox)
+  assert.ok(Math.abs(topMenuBox.x - topClick.x) <= 1)
+  assert.ok(Math.abs(topMenuBox.y - topClick.y) <= 1)
+  assert.equal(await page.locator('.session-menu-item').count(), 3)
+  assert.equal(await page.locator('.session-menu-icon svg').count(), 3)
+  const iconBox = await page.locator('.session-menu-icon').first().boundingBox()
+  const labelBox = await page.locator('.session-menu-label').first().boundingBox()
+  assert.ok(iconBox && labelBox && iconBox.x < labelBox.x)
+  const labelAlign = await page
+    .locator('.session-menu-label')
+    .first()
+    .evaluate((element) => getComputedStyle(element).textAlign)
+  assert.equal(labelAlign, 'right')
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-session-menu.png') })
+  await page.keyboard.press('Escape')
+
+  const viewportHeight = await page.evaluate(() => window.innerHeight)
+  const bottomClick = { x: targetBox.x + 30, y: viewportHeight - 12 }
+  await menuTarget.evaluate(
+    (element, point) =>
+      element.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+          clientX: point.x,
+          clientY: point.y
+        })
+      ),
+    bottomClick
+  )
+  await page.waitForSelector('.session-menu')
+  await page.waitForTimeout(120)
+  const bottomMenuBox = await page.locator('.session-menu').boundingBox()
+  assert.ok(bottomMenuBox)
+  assert.ok(Math.abs(bottomMenuBox.y + bottomMenuBox.height - bottomClick.y) <= 1)
+  await page.keyboard.press('Escape')
+
+  await menuTarget.click({ button: 'right' })
+  await page.locator('.session-menu-item').filter({ hasText: '重命名' }).click()
+  await page.waitForSelector('.session-rename-input')
+  await page.locator('.session-rename-input').fill('右键菜单测试')
+  await page.locator('.session-rename-input').press('Enter')
+  await page.waitForFunction(
+    () =>
+      Array.from(document.querySelectorAll('.session-title')).some(
+        (element) => element.textContent === '右键菜单测试'
+      )
+  )
+  const renamedSession = await page.evaluate(async () => {
+    const state = await window.api.getState()
+    return state.sessions.find((session) => session.title === '右键菜单测试')
+  })
+  assert.ok(renamedSession)
+  assert.equal(renamedSession.customTitle, true)
+
+  const renamedTarget = page.locator('.session-main').filter({ hasText: '右键菜单测试' })
+  await renamedTarget.click({ button: 'right' })
+  await page.locator('.session-menu-item').filter({ hasText: '置顶' }).click()
+  await page.waitForSelector('.session-pin')
+  assert.equal(
+    await page.locator('.session-title').first().innerText(),
+    '右键菜单测试'
+  )
+
+  await renamedTarget.click({ button: 'right' })
+  await page.locator('.session-menu-item').filter({ hasText: '归档' }).click()
+  await page.waitForSelector('.session-archive-toggle')
+  assert.ok(!(await page.locator('.session-chip').innerText()).includes('右键菜单测试'))
+
+  await page.locator('.session-archive-toggle').click()
+  await page.waitForSelector('.session-item.is-archived')
+  const archivedTarget = page
+    .locator('.session-item.is-archived .session-main')
+    .filter({ hasText: '右键菜单测试' })
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-session-archive.png') })
+  await archivedTarget.click()
+  await page.waitForSelector('.session-archived-badge')
+  assert.equal(await page.locator('.composer textarea').isDisabled(), true)
+  await archivedTarget.click({ button: 'right' })
+  await page.locator('.session-menu-item').filter({ hasText: '取消归档' }).click()
+  await page.waitForFunction(() => !document.querySelector('.session-archive-toggle'))
+  await page.waitForFunction(
+    () => !(document.querySelector('.composer textarea')?.disabled ?? false)
+  )
+  assert.equal(await page.locator('.session-item.is-archived').count(), 0)
+  console.log('[e2e] session context menu rename/pin/archive + placement OK')
+
+  await page
+    .locator('.session-main')
+    .filter({ hasText: 'AgentRoles 项目启动' })
+    .click()
 
   // 模型页：拉取模型列表 + 输入框下拉选择
   await page.locator('.tab').filter({ hasText: '模型' }).click()

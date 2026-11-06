@@ -8,6 +8,7 @@ import type {
   AppSettings,
   ChatMessage,
   Session,
+  SessionPatch,
   SkillState,
   ThemeMode
 } from '@shared/types'
@@ -177,7 +178,10 @@ export class Store {
           agentId: session.agentId,
           title: session.title || '新会话',
           createdAt: Number(session.createdAt) || Date.now(),
-          updatedAt: Number(session.updatedAt) || Number(session.createdAt) || Date.now()
+          updatedAt: Number(session.updatedAt) || Number(session.createdAt) || Date.now(),
+          customTitle: Boolean(session.customTitle),
+          pinned: Boolean(session.pinned),
+          archived: Boolean(session.archived)
         }))
     } catch {
       this.sessions = []
@@ -209,9 +213,20 @@ export class Store {
         changed = true
       }
       for (const session of list) {
-        if (session.title === '默认会话' || session.title === '新会话') {
+        if (
+          !session.customTitle &&
+          (session.title === '默认会话' || session.title === '新会话')
+        ) {
           const hydrated = this.hydrateSessionTitle(session)
           if (hydrated) changed = true
+        }
+      }
+      // 防止异常数据把所有会话都归档；至少保留一个可见会话
+      if (list.every((session) => session.archived)) {
+        const latest = [...list].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+        if (latest) {
+          latest.archived = false
+          changed = true
         }
       }
     }
@@ -220,6 +235,7 @@ export class Store {
 
   /** 首次从旧版本升级时，从已有的第一条用户消息中恢复会话标题 */
   private hydrateSessionTitle(session: Session): boolean {
+    if (session.customTitle) return false
     try {
       const raw = fs.readFileSync(path.join(this.messagesDir, session.id + '.json'), 'utf8')
       const list = JSON.parse(raw) as ChatMessage[]
@@ -291,16 +307,19 @@ export class Store {
   }
 
   getDefaultSession(agentId: string): Session | undefined {
-    const list = this.sessions
-      .filter((session) => session.agentId === agentId)
+    const all = this.sessions.filter((session) => session.agentId === agentId)
+    const list = all
+      .filter((session) => !session.archived)
       .sort((a, b) => b.updatedAt - a.updatedAt)
     const fixed = list.find((session) => session.id === agentId)
-    return clone(fixed ?? list[0])
+    return clone(fixed ?? list[0] ?? all.sort((a, b) => b.updatedAt - a.updatedAt)[0])
   }
 
   findSession(agentId: string, idOrTitle: string): Session | undefined {
     const value = idOrTitle.trim()
-    const list = this.sessions.filter((session) => session.agentId === agentId)
+    const list = this.sessions.filter(
+      (session) => session.agentId === agentId && !session.archived
+    )
     const exact = list.find((session) => session.id === value)
     if (exact) return clone(exact)
     const byTitle = list.find(
@@ -317,9 +336,42 @@ export class Store {
       agentId,
       title,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      customTitle: false,
+      pinned: false,
+      archived: false
     }
     this.sessions.push(session)
+    await this.persistSessions()
+    return clone(session)
+  }
+
+  async updateSession(sessionId: string, patch: SessionPatch): Promise<Session> {
+    const session = this.sessions.find((item) => item.id === sessionId)
+    if (!session) throw new Error('会话不存在')
+
+    if (patch.title !== undefined) {
+      const title = patch.title.replace(/\s+/g, ' ').trim().slice(0, 60)
+      if (!title) throw new Error('会话标题不能为空')
+      session.title = title
+      session.customTitle = true
+    }
+
+    if (patch.pinned !== undefined) {
+      session.pinned = Boolean(patch.pinned)
+    }
+
+    if (patch.archived !== undefined) {
+      const archived = Boolean(patch.archived)
+      if (archived && !session.archived) {
+        const activeCount = this.sessions.filter(
+          (item) => item.agentId === session.agentId && !item.archived
+        ).length
+        if (activeCount <= 1) throw new Error('至少保留一个未归档会话')
+      }
+      session.archived = archived
+    }
+
     await this.persistSessions()
     return clone(session)
   }
@@ -328,7 +380,11 @@ export class Store {
     const session = this.sessions.find((item) => item.id === sessionId)
     if (!session) return
     session.updatedAt = Date.now()
-    if (content && (session.title === '新会话' || session.title === '默认会话')) {
+    if (
+      content &&
+      !session.customTitle &&
+      (session.title === '新会话' || session.title === '默认会话')
+    ) {
       const title = deriveSessionTitle(content)
       if (title) session.title = title
     }

@@ -3835,3 +3835,174 @@ pre,
 [data-theme='light'] .session-chip {
   background: rgba(30, 35, 24, 0.03);
 }
+
+
+/* ---------- session context menu / rename / archive ---------- */
+
+.session-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+  flex: none;
+  color: var(--agent-color);
+}
+
+.session-item.is-archived .session-main {
+  color: var(--faint);
+}
+
+.session-item.is-archived .session-title {
+  color: var(--faint);
+}
+
+.session-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--faint);
+  font-size: 10.5px;
+  text-align: left;
+}
+
+.session-archive-toggle:hover {
+  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.session-archive-toggle svg {
+  flex: none;
+}
+
+.session-archive-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+
+.session-rename-icon {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--accent);
+}
+
+.session-item.is-editing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+}
+
+.session-rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  outline: none;
+}
+
+.session-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 176px;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  animation: session-menu-in 0.12s ease both;
+  user-select: none;
+}
+
+@keyframes session-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.session-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 6px;
+  color: var(--text-soft);
+  font-size: 12px;
+  text-align: right;
+}
+
+.session-menu-item:hover,
+.session-menu-item:focus-visible {
+  background: var(--sunken-bg);
+  color: var(--text);
+  outline: none;
+}
+
+.session-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 16px;
+  flex: none;
+  color: var(--text-soft);
+}
+
+.session-menu-label {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.session-archived-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  color: var(--faint);
+  background: var(--sunken-bg);
+  font-size: 11px;
+  flex: none;
+}
+
+.composer.is-archived {
+  background: var(--sunken-bg);
+}
+
+.composer.is-archived textarea {
+  color: var(--faint);
+}
+
+.composer-notice-archived {
+  color: var(--muted);
+}
+
+[data-theme='light'] .session-archive-toggle:hover {
+  background: rgba(30, 35, 24, 0.05);
+}
+
+[data-theme='light'] .session-menu {
+  background: #ffffff;
+}
+
+[data-theme='light'] .session-menu-item:hover,
+[data-theme='light'] .session-menu-item:focus-visible {
+  background: rgba(30, 35, 24, 0.055);
+}

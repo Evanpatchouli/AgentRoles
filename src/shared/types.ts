@@ -79,10 +79,22 @@ export interface ToolCall {
 export interface Session {
   id: string
   agentId: string
-  /** 会话标题：首条用户消息自动生成，可后续扩展重命名 */
+  /** 会话标题：首条用户消息自动生成，重命名后不再自动覆盖 */
   title: string
   createdAt: number
   updatedAt: number
+  /** 用户手动重命名过，后续消息不再自动改标题 */
+  customTitle?: boolean
+  /** 置顶会话在侧边栏中优先显示 */
+  pinned?: boolean
+  /** 归档会话从默认列表隐藏，但仍可在“已归档”中查看 */
+  archived?: boolean
+}
+
+export interface SessionPatch {
+  title?: string
+  pinned?: boolean
+  archived?: boolean
 }
 
 export interface ChatMessage {
@@ -246,6 +258,7 @@ export interface AgentRolesApi {
   saveAgent(agent: Agent): Promise<Agent>
   deleteAgent(id: string): Promise<{ ok: boolean }>
   createSession(agentId: string): Promise<Session>
+  updateSession(sessionId: string, patch: SessionPatch): Promise<Session>
   sendMessage(sessionId: string, content: string): Promise<SendResult>
   processMessage(sessionId: string, messageId: string): Promise<StartRunResult>
   stopSession(sessionId: string): Promise<{ ok: boolean }>

@@ -167,16 +167,19 @@ async function bootstrap(): Promise<void> {
         tagline: agent.tagline,
         avatar: agent.avatar,
         autoRun: agent.autoRun,
-        sessionCount: store.getSessions(agent.id).length
+        sessionCount: store.getSessions(agent.id).filter((session) => !session.archived).length
       })),
     listSessions: (agentKey) => {
       const agent = store.findAgent(agentKey)
       if (!agent) throw new Error('角色不存在：' + agentKey)
-      return store.getSessions(agent.id).map((session) => ({
-        id: session.id,
-        title: session.title,
-        updatedAt: session.updatedAt
-      }))
+      return store
+        .getSessions(agent.id)
+        .filter((session) => !session.archived)
+        .map((session) => ({
+          id: session.id,
+          title: session.title,
+          updatedAt: session.updatedAt
+        }))
     },
     ingest: (agentKey, payload) => {
       const agent = store.findAgent(agentKey)

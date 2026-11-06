@@ -46,11 +46,15 @@ function sortMessages(list: ChatMessage[]): ChatMessage[] {
 }
 
 function sortSessions(list: Session[]): Session[] {
-  return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
+  return [...list].sort(
+    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt
+  )
 }
 
 function latestSession(sessions: Session[], agentId: string): Session | undefined {
-  return sortSessions(sessions.filter((session) => session.agentId === agentId))[0]
+  const all = sessions.filter((session) => session.agentId === agentId)
+  const active = all.filter((session) => !session.archived)
+  return sortSessions(active)[0] ?? sortSessions(all)[0]
 }
 
 const THEME_OPTIONS: Array<{
@@ -158,7 +162,7 @@ export default function App() {
     }
     const sessions = state.sessions.filter((session) => session.agentId === activeAgentId)
     if (!sessions.some((session) => session.id === activeSessionId)) {
-      setActiveSessionId(sortSessions(sessions)[0]?.id ?? '')
+      setActiveSessionId(latestSession(state.sessions, activeAgentId)?.id ?? '')
     }
   }, [state, activeAgentId, activeSessionId])
 
@@ -436,6 +440,85 @@ export default function App() {
     await window.api.stopSession(sessionId)
   }, [])
 
+  const applySessionUpdate = useCallback((updated: Session) => {
+    setState((prev) =>
+      prev
+        ? {
+            ...prev,
+            sessions: prev.sessions.map((session) =>
+              session.id === updated.id ? updated : session
+            )
+          }
+        : prev
+    )
+  }, [])
+
+  const renameSession = useCallback(
+    async (sessionId: string, title: string): Promise<boolean> => {
+      try {
+        const updated = await window.api.updateSession(sessionId, { title })
+        applySessionUpdate(updated)
+        notify('success', '会话已重命名')
+        return true
+      } catch (error: any) {
+        notify('error', '重命名失败：' + (error?.message ?? String(error)))
+        return false
+      }
+    },
+    [applySessionUpdate, notify]
+  )
+
+  const toggleSessionPin = useCallback(
+    async (session: Session) => {
+      try {
+        const updated = await window.api.updateSession(session.id, {
+          pinned: !session.pinned
+        })
+        applySessionUpdate(updated)
+        notify('success', updated.pinned ? '会话已置顶' : '已取消置顶')
+      } catch (error: any) {
+        notify('error', '更新置顶失败：' + (error?.message ?? String(error)))
+      }
+    },
+    [applySessionUpdate, notify]
+  )
+
+  const toggleSessionArchive = useCallback(
+    async (session: Session) => {
+      const archived = !session.archived
+      if (archived) {
+        const runtime = state?.running[session.id]
+        if (runtime?.running || runtime?.queued) {
+          notify('error', '会话正在运行，停止后再归档')
+          return
+        }
+        const activeCount =
+          state?.sessions.filter(
+            (item) => item.agentId === session.agentId && !item.archived
+          ).length ?? 0
+        if (activeCount <= 1) {
+          notify('error', '至少保留一个未归档会话')
+          return
+        }
+      }
+      try {
+        const updated = await window.api.updateSession(session.id, { archived })
+        applySessionUpdate(updated)
+        if (archived && activeSessionId === session.id) {
+          const nextSessions = (state?.sessions ?? []).map((item) =>
+            item.id === updated.id ? updated : item
+          )
+          const next = latestSession(nextSessions, session.agentId)
+          setActiveSessionId(next?.id ?? '')
+        }
+        notify('success', archived ? '会话已归档' : '已取消归档')
+      } catch (error: any) {
+        notify('error', '更新归档失败：' + (error?.message ?? String(error)))
+      }
+    },
+    [activeSessionId, applySessionUpdate, notify, state]
+  )
+
   const changeTheme = useCallback(
     async (theme: ThemeMode) => {
       const requestId = ++themeRequest.current
@@ -602,6 +685,9 @@ export default function App() {
           onSelectSession={handleSelectSession}
           onCreateAgent={() => void createAgent()}
           onCreateSession={(agentId) => void createSession(agentId)}
+          onRenameSession={renameSession}
+          onTogglePin={(session) => void toggleSessionPin(session)}
+          onToggleArchive={(session) => void toggleSessionArchive(session)}
         />
 
         <main className="stage">
@@ -621,6 +707,7 @@ export default function App() {
               onSaveAgent={saveAgent}
               onDeleteAgent={requestDeleteAgent}
               onNewSession={() => void createSession(activeAgent.id)}
+              onUnarchive={() => void toggleSessionArchive(activeSession)}
               onSend={sendMessage}
               onProcessMessage={processMessage}
               onStop={stopSession}

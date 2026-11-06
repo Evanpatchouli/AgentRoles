@@ -15,6 +15,8 @@ export function ChatPanel({
   messages,
   running,
   pendingCount,
+  archived,
+  onUnarchive,
   onSend,
   onStop,
   onProcessMessage,
@@ -27,6 +29,8 @@ export function ChatPanel({
   messages: ChatMessage[]
   running: boolean
   pendingCount: number
+  archived: boolean
+  onUnarchive: () => void
   onSend: (sessionId: string, content: string) => Promise<boolean>
   onStop: (sessionId: string) => Promise<void>
   onProcessMessage: (sessionId: string, messageId: string) => Promise<void>
@@ -93,7 +97,7 @@ export function ChatPanel({
 
   async function submit(): Promise<void> {
     const text = draft.trim()
-    if (!text || running || sending) return
+    if (!text || running || sending || archived) return
     setSending(true)
     stick.current = true
     const ok = await onSend(session.id, text)
@@ -177,7 +181,13 @@ export function ChatPanel({
       </div>
 
       <div className="composer-wrap">
-        {!hasKey && isOpenAiCompatible ? (
+        {archived ? (
+          <div className="composer-notice composer-notice-archived">
+            <Icon name="archive" size={14} />
+            <span>此会话已归档，取消归档后可继续发送消息</span>
+            <button onClick={onUnarchive}>取消归档</button>
+          </div>
+        ) : !hasKey && isOpenAiCompatible ? (
           <div className="composer-notice">
             <Icon name="key" size={14} />
             <span>这个角色还没有配置 API Key</span>
@@ -185,7 +195,7 @@ export function ChatPanel({
           </div>
         ) : null}
 
-        {pendingCount > 0 && !running ? (
+        {pendingCount > 0 && !running && !archived ? (
           <div className="pending-banner">
             <span className="pending-dot" />
             <span>有 {pendingCount} 条外部消息待处理</span>
@@ -209,15 +219,21 @@ export function ChatPanel({
           </div>
         ) : null}
 
-        <div className={'composer' + (running ? ' is-running' : '')}>
+        <div
+          className={
+            'composer' + (running ? ' is-running' : '') + (archived ? ' is-archived' : '')
+          }
+        >
           <textarea
             ref={textareaRef}
             value={draft}
             rows={1}
             placeholder={
-              running
-                ? '正在处理上一条消息…'
-                : '给 ' + agent.name + ' 发消息，Enter 发送，Shift + Enter 换行'
+              archived
+                ? '此会话已归档'
+                : running
+                  ? '正在处理上一条消息…'
+                  : '给 ' + agent.name + ' 发消息，Enter 发送，Shift + Enter 换行'
             }
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -226,7 +242,7 @@ export function ChatPanel({
                 void submit()
               }
             }}
-            disabled={running}
+            disabled={running || archived}
           />
           <div className="composer-actions">
             <span className="composer-hint">{draft.length > 0 ? draft.length + ' 字' : '本地运行 · 数据保存在本机'}</span>
@@ -238,7 +254,7 @@ export function ChatPanel({
               <button
                 className="send-btn"
                 onClick={() => void submit()}
-                disabled={!draft.trim() || sending}
+                disabled={!draft.trim() || sending || archived}
                 title="发送"
               >
                 <Icon name="send" size={16} />

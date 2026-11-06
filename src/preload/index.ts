@@ -9,6 +9,8 @@ const api: AgentRolesApi = {
   saveAgent: (agent) => ipcRenderer.invoke('agents:save', agent),
   deleteAgent: (id) => ipcRenderer.invoke('agents:delete', id),
   createSession: (agentId) => ipcRenderer.invoke('sessions:create', agentId),
+  updateSession: (sessionId, patch) =>
+    ipcRenderer.invoke('sessions:update', sessionId, patch),
   sendMessage: (sessionId, content) =>
     ipcRenderer.invoke('messages:send', sessionId, content),
   processMessage: (sessionId, messageId) =>

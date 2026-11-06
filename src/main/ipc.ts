@@ -11,6 +11,7 @@ import type {
   ModelSettings,
   NotionSettings,
   RuntimePaths,
+  SessionPatch,
   TestResult,
   ThemeMode
 } from '@shared/types'
@@ -169,6 +170,13 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('sessions:create', async (_event, agentId: string) => {
     return store.createSession(agentId)
   })
+
+  ipcMain.handle(
+    'sessions:update',
+    async (_event, sessionId: string, patch: SessionPatch) => {
+      return store.updateSession(sessionId, patch ?? {})
+    }
+  )
 
   ipcMain.handle('agents:save', async (_event, input: Agent) => {
     if (!input?.id) throw new Error('缺少角色 id')

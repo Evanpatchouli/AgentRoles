@@ -30,6 +30,7 @@ export function AgentView({
   onSaveAgent,
   onDeleteAgent,
   onNewSession,
+  onUnarchive,
   onSend,
   onProcessMessage,
   onStop,
@@ -48,6 +49,7 @@ export function AgentView({
   onSaveAgent: (agent: Agent) => Promise<Agent | null>
   onDeleteAgent: (agent: Agent) => void
   onNewSession: () => void
+  onUnarchive: () => void
   onSend: (sessionId: string, content: string) => Promise<boolean>
   onProcessMessage: (sessionId: string, messageId: string) => Promise<void>
   onStop: (sessionId: string) => Promise<void>
@@ -93,6 +95,12 @@ export function AgentView({
           </div>
         </div>
         <div className="agent-actions">
+          {session.archived ? (
+            <span className="session-archived-badge">
+              <Icon name="archive" size={11} />
+              已归档
+            </span>
+          ) : null}
           <span className="session-chip" title={session.title}>
             <Icon name="message" size={12} />
             {session.title}
@@ -137,6 +145,8 @@ export function AgentView({
             messages={messages}
             running={running.running}
             pendingCount={pendingExternal.length}
+            archived={Boolean(session.archived)}
+            onUnarchive={onUnarchive}
             onSend={onSend}
             onStop={onStop}
             onProcessMessage={onProcessMessage}

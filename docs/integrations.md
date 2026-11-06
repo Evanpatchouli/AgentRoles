@@ -22,7 +22,7 @@ AgentRoles 把每个角色暴露成本机可访问的消息端点。Codex、Clau
 | --- | --- | --- | --- |
 | GET | ~~~/health~~~ | 否 | 健康检查，返回版本与角色数量 |
 | GET | ~~~/v1/agents~~~ | 是 | 列出角色（id、名称、职责、是否自动处理） |
-| GET | ~~~/v1/agents/{id或名称}/sessions~~~ | 是 | 列出该角色的历史会话（id、标题、更新时间） |
+| GET | ~~~/v1/agents/{id或名称}/sessions~~~ | 是 | 列出该角色未归档的会话（id、标题、更新时间） |
 | POST | ~~~/v1/agents/{id或名称}/messages~~~ | 是 | 向指定角色投递消息，可指定会话 |
 | POST | ~~~/v1/messages~~~ | 是 | 在 body 中用 ~~~agent~~~ 字段指定角色 |
 
@@ -119,7 +119,7 @@ node resources/mcp-server.mjs
 | 工具 | 用途 |
 | --- | --- |
 | ~~~agentroles_list_agents~~~ | 列出角色，确认角色名 |
-| ~~~agentroles_list_sessions~~~ | 列出角色的历史会话，参数：agent |
+| ~~~agentroles_list_sessions~~~ | 列出角色未归档的会话，参数：agent |
 | ~~~agentroles_send_message~~~ | 向角色投递消息，参数：agent、content、title、source、sender、session |
 
 ### Claude Code

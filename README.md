@@ -73,11 +73,15 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 
 - 点击侧边栏角色右侧的展开箭头，查看该角色的历史会话并切换
 - 点击角色行会选中该角色并展开会话列表
+- 右键会话可重命名、置顶或归档；置顶会话排在最前
+- 归档会话收进「已归档」分组，可展开查看、取消归档
 - 「新会话」按钮或会话列表底部的「新建会话」会创建一条新线程
-- 首条用户消息会自动成为会话标题；外部 Agent 也可以指定投递到某条会话
+- 首条用户消息会自动成为会话标题；手动重命名后不会再被自动覆盖
 - 不同会话的上下文互不混合，同一角色的多条会话可以各自运行
 
 ![多会话](docs/assets/sessions.png)
+
+![会话右键菜单](docs/assets/session-menu.png)
 
 ## 内置技能
 
@@ -183,7 +187,7 @@ npm run test:notion         # 用模拟 Notion API 验证属性映射
 npm run test:models         # 模型列表接口（OpenAI 兼容 / Anthropic）
 npm run test:integrations   # MCP Server + CLI
 npm run test:migration      # 旧版单会话消息迁移到默认会话
-npm run test:e2e            # Playwright：工具循环、多会话、头像、主题与外部 session 路由
+npm run test:e2e            # Playwright：工具循环、多会话/右键菜单、头像、主题与外部 session 路由
 npm run test:all            # 全部
 ```
 
@@ -191,7 +195,7 @@ E2E 测试会使用临时 `userData`，不会污染你的真实配置。
 
 ## 已知限制
 
-- 暂不支持手动重命名、删除或归档会话；会话标题由首条消息自动生成。
+- 暂不支持删除会话；归档会话可以在侧边栏的「已归档」分组中恢复。
 - 没有多人协作与云端同步；每台机器各自运行。
 - Notion 使用 `2022-06-28` API 版本，尚未接入 2025 的 data sources 模型。
 - 工具调用最多 10 轮；历史上下文按条数与字符数截断。

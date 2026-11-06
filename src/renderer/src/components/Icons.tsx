@@ -158,6 +158,37 @@ const paths: Record<string, ReactNode> = {
       <path d="M15.5 6a3 3 0 010 5.8M16 14.2c2.6.3 4.5 2.3 4.5 4.8" />
     </>
   ),
+  edit: (
+    <>
+      <path d="M4 20h4L18.6 9.4a2.1 2.1 0 00-3-3L5 17v3z" />
+      <path d="M13.5 6.5l4 4" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M9 3.5h6M10 3.5v5l-3 3v2h10v-2l-3-3v-5" />
+      <path d="M12 13.5V21" />
+    </>
+  ),
+  pinOff: (
+    <>
+      <path d="M9 3.5h6M10 3.5v5l-3 3v2h10v-2l-3-3v-5" />
+      <path d="M12 13.5V21" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
+  archive: (
+    <>
+      <rect x="3.5" y="5" width="17" height="4" rx="1.2" />
+      <path d="M5 9v10h14V9M9.5 13h5" />
+    </>
+  ),
+  archiveRestore: (
+    <>
+      <rect x="3.5" y="5" width="17" height="4" rx="1.2" />
+      <path d="M5 9v10h14V9M12 17v-5M9.5 14.5L12 12l2.5 2.5" />
+    </>
+  ),
   arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />
 }
 
