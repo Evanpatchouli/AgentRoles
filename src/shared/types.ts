@@ -184,6 +184,22 @@ export interface UpdateCheckResult {
   info?: UpdateInfo
 }
 
+export interface ReleaseNote {
+  version: string
+  name: string
+  publishedAt: string
+  body: string
+  htmlUrl: string
+  prerelease: boolean
+}
+
+export interface WhatsNewData {
+  currentVersion: string
+  releases: ReleaseNote[]
+  source: 'github' | 'cache' | 'bundled'
+  fetchedAt: number
+}
+
 export interface AppState {
   agents: Agent[]
   sessions: Session[]
@@ -290,6 +306,7 @@ export interface AgentRolesApi {
   zoomWindow(direction: 'in' | 'out'): Promise<void>
   toggleFullscreen(): Promise<void>
   checkForUpdates(): Promise<UpdateCheckResult>
+  getWhatsNew(force?: boolean): Promise<WhatsNewData>
   sendMessage(sessionId: string, content: string): Promise<SendResult>
   processMessage(sessionId: string, messageId: string): Promise<StartRunResult>
   stopSession(sessionId: string): Promise<{ ok: boolean }>

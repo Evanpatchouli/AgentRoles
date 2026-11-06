@@ -7,7 +7,8 @@ import type {
   ChatMessage,
   Session,
   ThemeMode,
-  UpdateInfo
+  UpdateInfo,
+  WhatsNewData
 } from '@shared/types'
 import { APP_FEEDBACK_URL } from '@shared/types'
 import { Sidebar, type MainView } from './components/Sidebar'
@@ -19,6 +20,7 @@ import { ConfirmDialog, ToastStack } from './components/Primitives'
 import { TitleBarMenu } from './components/TitleBarMenu'
 import { AboutDialog } from './components/AboutDialog'
 import { UpdateDialog } from './components/UpdateDialog'
+import { WhatsNewDialog } from './components/WhatsNewDialog'
 
 type Tab = 'chat' | 'skills' | 'role' | 'model'
 
@@ -86,6 +88,10 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateOpen, setUpdateOpen] = useState(false)
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false)
+  const [whatsNewData, setWhatsNewData] = useState<WhatsNewData | null>(null)
+  const [whatsNewLoading, setWhatsNewLoading] = useState(false)
+  const [whatsNewError, setWhatsNewError] = useState('')
   const checkingUpdate = useRef(false)
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
   const inboxTimer = useRef<number | null>(null)
@@ -571,6 +577,20 @@ export default function App() {
     }
   }, [notify, updateInfo])
 
+  const openWhatsNew = useCallback(async (force = false) => {
+    setWhatsNewOpen(true)
+    setWhatsNewLoading(true)
+    setWhatsNewError('')
+    try {
+      const data = await window.api.getWhatsNew(force)
+      setWhatsNewData(data)
+    } catch (error: any) {
+      setWhatsNewError('读取版本记录失败：' + (error?.message ?? String(error)))
+    } finally {
+      setWhatsNewLoading(false)
+    }
+  }, [])
+
   const changeTheme = useCallback(
     async (theme: ThemeMode) => {
       const requestId = ++themeRequest.current
@@ -690,6 +710,7 @@ export default function App() {
             onZoom={(direction) => void window.api.zoomWindow(direction)}
             onToggleFullscreen={() => void window.api.toggleFullscreen()}
             onFeedback={() => void window.api.openExternal(APP_FEEDBACK_URL)}
+            onWhatsNew={() => void openWhatsNew()}
             onCheckUpdate={() => void checkUpdates()}
             onAbout={() => setAboutOpen(true)}
           />
@@ -834,6 +855,19 @@ export default function App() {
         info={updateInfo}
         onClose={() => setUpdateOpen(false)}
         onDownload={() => void downloadUpdate()}
+      />
+
+      <WhatsNewDialog
+        open={whatsNewOpen}
+        data={whatsNewData}
+        loading={whatsNewLoading}
+        error={whatsNewError}
+        onClose={() => setWhatsNewOpen(false)}
+        onRefresh={() => void openWhatsNew(true)}
+        onCheckUpdate={() => {
+          setWhatsNewOpen(false)
+          void checkUpdates()
+        }}
       />
 
       <ConfirmDialog

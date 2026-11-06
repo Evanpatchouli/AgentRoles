@@ -1,0 +1,12 @@
+{
+  "releases": [
+    {
+      "version": "0.1.0",
+      "name": "AgentRoles 初始版本",
+      "publishedAt": "2026-11-07",
+      "body": "### 初始版本\n\n- 多角色工作台：每个角色拥有独立职责、模型 API 与技能\n- 多会话：侧边栏展开角色即可切换历史会话，支持重命名、置顶与归档\n- 外部接入：HTTP / MCP / CLI 消息投递，支持指定会话\n- Notion 任务记录、长期记忆、本地文件、HTTP 与终端技能\n- 深色 / 浅色 / 跟随系统主题，强调色支持色弱友好的颜色提示",
+      "htmlUrl": "https://github.com/Evanpatchouli/AgentRoles/releases",
+      "prerelease": false
+    }
+  ]
+}

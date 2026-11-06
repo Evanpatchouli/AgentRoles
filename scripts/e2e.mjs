@@ -66,6 +66,32 @@ const modelServer = http.createServer((request, response) => {
     )
     return
   }
+  if (request.method === 'GET' && request.url === '/releases-list') {
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(
+      JSON.stringify([
+        {
+          tag_name: 'v0.1.1',
+          name: 'AgentRoles v0.1.1',
+          published_at: '2026-11-06T10:00:00Z',
+          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.1',
+          body: '### 新功能\n\n- 测试版本更新记录\n- 优化更新检查流程',
+          draft: false,
+          prerelease: false
+        },
+        {
+          tag_name: 'v0.1.0',
+          name: 'AgentRoles 初始版本',
+          published_at: '2026-11-05T10:00:00Z',
+          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.0',
+          body: '### 初始版本\n\n- 多角色与多会话',
+          draft: false,
+          prerelease: false
+        }
+      ])
+    )
+    return
+  }
   if (request.method === 'GET' && request.url === '/releases/latest') {
     response.writeHead(200, { 'Content-Type': 'application/json' })
     response.end(
@@ -149,7 +175,8 @@ const app = await electron.launch({
   env: {
     ...process.env,
     AGENTROLES_USER_DATA: userData,
-    AGENTROLES_RELEASES_API: 'http://127.0.0.1:' + modelPort + '/releases/latest'
+    AGENTROLES_RELEASES_API: 'http://127.0.0.1:' + modelPort + '/releases/latest',
+    AGENTROLES_RELEASES_LIST_API: 'http://127.0.0.1:' + modelPort + '/releases-list'
   }
 })
 const appPid = app.process().pid
@@ -628,21 +655,17 @@ try {
   await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
   await page.waitForSelector('.titlebar-submenu')
   const helpMenu = page.locator('.titlebar-submenu')
-  for (const label of ['文档', '新功能']) {
+  assert.equal(
+    await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '文档' }).isDisabled(),
+    true
+  )
+  for (const label of ['新功能', '反馈', '检查更新']) {
     assert.equal(
       await helpMenu.locator('.titlebar-menu-item').filter({ hasText: label }).isDisabled(),
-      true,
-      label + ' should be disabled'
+      false,
+      label + ' should be enabled'
     )
   }
-  assert.equal(
-    await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '反馈' }).isDisabled(),
-    false
-  )
-  assert.equal(
-    await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '检查更新' }).isDisabled(),
-    false
-  )
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-titlebar-help.png') })
 
   await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '关于' }).click()
@@ -660,6 +683,25 @@ try {
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-about.png') })
   await page.locator('.about-actions .btn').click()
   await page.waitForFunction(() => !document.querySelector('.about-card'))
+
+  // 新功能：版本时间线（E2E 使用本地 mock Release 列表）
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
+  await page.waitForSelector('.titlebar-submenu')
+  await page.locator('.titlebar-menu-item').filter({ hasText: '新功能' }).click()
+  await page.waitForSelector('.whats-new-card', { timeout: 20000 })
+  await page.waitForTimeout(300)
+  const whatsNewText = await page.locator('.whats-new-card').innerText()
+  assert.ok(whatsNewText.includes('版本更新'))
+  assert.ok(whatsNewText.includes('v0.1.1'))
+  assert.ok(whatsNewText.includes('v0.1.0'))
+  assert.ok(whatsNewText.includes('测试版本更新记录'))
+  assert.ok(whatsNewText.includes('当前版本'))
+  assert.ok(whatsNewText.includes('GitHub 最新数据'))
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-whats-new.png') })
+  await page.locator('.whats-new-actions .btn-ghost').click()
+  await page.waitForFunction(() => !document.querySelector('.whats-new-card'))
+  console.log('[e2e] whats-new release timeline OK')
 
   // 检查更新：GitHub Release API（E2E 使用本地 mock）
   await page.locator('.topbar-more').click()

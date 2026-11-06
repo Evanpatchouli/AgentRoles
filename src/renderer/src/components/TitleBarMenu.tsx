@@ -10,6 +10,7 @@ export function TitleBarMenu({
   onZoom,
   onToggleFullscreen,
   onFeedback,
+  onWhatsNew,
   onCheckUpdate,
   onAbout
 }: {
@@ -18,6 +19,7 @@ export function TitleBarMenu({
   onZoom: (direction: 'in' | 'out') => void
   onToggleFullscreen: () => void
   onFeedback: () => void
+  onWhatsNew: () => void
   onCheckUpdate: () => void
   onAbout: () => void
 }) {
@@ -231,8 +233,10 @@ export function TitleBarMenu({
                     <button
                       className="titlebar-menu-item"
                       role="menuitem"
-                      disabled
-                      title="暂未提供"
+                      onClick={() => {
+                        close()
+                        onWhatsNew()
+                      }}
                     >
                       <span className="titlebar-menu-icon">
                         <Icon name="sparkle" size={15} />

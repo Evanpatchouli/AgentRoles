@@ -1,9 +1,20 @@
-import type { UpdateCheckResult } from '@shared/types'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import type { ReleaseNote, UpdateCheckResult, WhatsNewData } from '@shared/types'
+import { APP_INTRO, APP_RELEASE_DATE } from '../shared/types'
+import { compareVersions } from '../shared/version'
+
+export { compareVersions }
 
 const RELEASES_API =
   process.env.AGENTROLES_RELEASES_API ||
   'https://api.github.com/repos/Evanpatchouli/AgentRoles/releases/latest'
+const RELEASES_LIST_API =
+  process.env.AGENTROLES_RELEASES_LIST_API ||
+  'https://api.github.com/repos/Evanpatchouli/AgentRoles/releases?per_page=20'
 const RELEASES_PAGE = 'https://github.com/Evanpatchouli/AgentRoles/releases'
+const CACHE_TTL = 6 * 60 * 60 * 1000
+const CACHE_FILE = 'releases-cache.json'
 
 interface ReleaseAsset {
   name?: string
@@ -16,57 +27,182 @@ interface GitHubRelease {
   published_at?: string
   html_url?: string
   body?: string
+  draft?: boolean
+  prerelease?: boolean
   assets?: ReleaseAsset[]
 }
 
-function parseVersion(version: string): { core: number[]; pre: string[] } {
-  const cleaned = version.trim().replace(/^v/i, '').split('+')[0]
-  const dash = cleaned.indexOf('-')
-  const coreText = dash >= 0 ? cleaned.slice(0, dash) : cleaned
-  const preText = dash >= 0 ? cleaned.slice(dash + 1) : ''
+interface ReleaseCache {
+  fetchedAt: number
+  releases: ReleaseNote[]
+}
+
+export interface WhatsNewOptions {
+  cacheDir: string
+  fallbackPath: string
+  force?: boolean
+}
+
+function headers(currentVersion: string): Record<string, string> {
   return {
-    core: coreText.split('.').map((part) => {
-      const value = Number(part)
-      return Number.isFinite(value) ? value : 0
-    }),
-    pre: preText ? preText.split('.') : []
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'AgentRoles/' + currentVersion
   }
 }
 
-/** 语义化版本比较：v 前缀、alpha/beta/rc 等预发布标识均支持。 */
-export function compareVersions(left: string, right: string): number {
-  const a = parseVersion(left)
-  const b = parseVersion(right)
-  const length = Math.max(a.core.length, b.core.length)
-  for (let index = 0; index < length; index += 1) {
-    const diff = (a.core[index] ?? 0) - (b.core[index] ?? 0)
-    if (diff !== 0) return diff
+function toReleaseNote(data: GitHubRelease): ReleaseNote | null {
+  const version = String(data.tag_name || '').trim()
+  if (!version) return null
+  return {
+    version,
+    name: data.name || version,
+    publishedAt: data.published_at || '',
+    body: String(data.body || '').trim().slice(0, 20000),
+    htmlUrl: data.html_url || RELEASES_PAGE,
+    prerelease: Boolean(data.prerelease)
   }
+}
 
-  if (a.pre.length === 0 && b.pre.length === 0) return 0
-  if (a.pre.length === 0) return 1
-  if (b.pre.length === 0) return -1
+function normalizeReleases(data: GitHubRelease[]): ReleaseNote[] {
+  return data
+    .filter((release) => !release.draft && !release.prerelease)
+    .map(toReleaseNote)
+    .filter((release): release is ReleaseNote => Boolean(release))
+    .sort((a, b) => compareVersions(b.version, a.version))
+}
 
-  const preLength = Math.max(a.pre.length, b.pre.length)
-  for (let index = 0; index < preLength; index += 1) {
-    const leftPart = a.pre[index]
-    const rightPart = b.pre[index]
-    if (leftPart === undefined) return -1
-    if (rightPart === undefined) return 1
-    const leftNumeric = /^\d+$/.test(leftPart)
-    const rightNumeric = /^\d+$/.test(rightPart)
-    if (leftNumeric && rightNumeric) {
-      const diff = Number(leftPart) - Number(rightPart)
-      if (diff !== 0) return diff
-    } else if (leftNumeric) {
-      return -1
-    } else if (rightNumeric) {
-      return 1
-    } else if (leftPart !== rightPart) {
-      return leftPart < rightPart ? -1 : 1
+async function readCache(cachePath: string): Promise<ReleaseCache | null> {
+  try {
+    const raw = await fs.readFile(cachePath, 'utf8')
+    const parsed = JSON.parse(raw) as Partial<ReleaseCache>
+    if (!Array.isArray(parsed.releases)) return null
+    return {
+      fetchedAt: Number(parsed.fetchedAt) || 0,
+      releases: parsed.releases
+        .filter(
+          (release): release is ReleaseNote =>
+            Boolean(release?.version) && typeof release.body === 'string'
+        )
+        .sort((a, b) => compareVersions(b.version, a.version))
+    }
+  } catch {
+    return null
+  }
+}
+
+async function writeCache(cachePath: string, cache: ReleaseCache): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(cachePath), { recursive: true })
+    const tmp = cachePath + '.tmp'
+    await fs.writeFile(tmp, JSON.stringify(cache, null, 2), 'utf8')
+    await fs.rename(tmp, cachePath)
+  } catch {
+    /* cache is best-effort */
+  }
+}
+
+async function fetchReleases(currentVersion: string): Promise<ReleaseNote[]> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 20000)
+  try {
+    const response = await fetch(RELEASES_LIST_API, {
+      headers: headers(currentVersion),
+      signal: controller.signal
+    })
+    if (!response.ok) throw new Error('HTTP ' + response.status)
+    const data = (await response.json()) as unknown
+    if (!Array.isArray(data)) throw new Error('Release 列表格式异常')
+    return normalizeReleases(data as GitHubRelease[])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function readFallback(
+  fallbackPath: string,
+  currentVersion: string
+): Promise<ReleaseNote[]> {
+  try {
+    const raw = await fs.readFile(fallbackPath, 'utf8')
+    const parsed = JSON.parse(raw) as { releases?: ReleaseNote[] } | ReleaseNote[]
+    const list = Array.isArray(parsed) ? parsed : parsed.releases
+    if (Array.isArray(list)) {
+      const normalized = list
+        .filter(
+          (release): release is ReleaseNote =>
+            Boolean(release?.version) && typeof release.body === 'string'
+        )
+        .sort((a, b) => compareVersions(b.version, a.version))
+      if (normalized.length > 0) return normalized
+    }
+  } catch {
+    /* use generated fallback */
+  }
+  return [
+    {
+      version: currentVersion,
+      name: 'AgentRoles',
+      publishedAt: APP_RELEASE_DATE,
+      body: APP_INTRO,
+      htmlUrl: RELEASES_PAGE,
+      prerelease: false
+    }
+  ]
+}
+
+export async function getWhatsNew(
+  currentVersion: string,
+  options: WhatsNewOptions
+): Promise<WhatsNewData> {
+  const cachePath = path.join(options.cacheDir, CACHE_FILE)
+  const cached = await readCache(cachePath)
+
+  if (
+    !options.force &&
+    cached &&
+    cached.releases.length > 0 &&
+    Date.now() - cached.fetchedAt < CACHE_TTL
+  ) {
+    return {
+      currentVersion,
+      releases: cached.releases,
+      source: 'cache',
+      fetchedAt: cached.fetchedAt
     }
   }
-  return 0
+
+  try {
+    const releases = await fetchReleases(currentVersion)
+    if (releases.length > 0) {
+      const fetchedAt = Date.now()
+      await writeCache(cachePath, { fetchedAt, releases })
+      return {
+        currentVersion,
+        releases,
+        source: 'github',
+        fetchedAt
+      }
+    }
+  } catch {
+    /* fall through to cache / bundled changelog */
+  }
+
+  if (cached && cached.releases.length > 0) {
+    return {
+      currentVersion,
+      releases: cached.releases,
+      source: 'cache',
+      fetchedAt: cached.fetchedAt
+    }
+  }
+
+  return {
+    currentVersion,
+    releases: await readFallback(options.fallbackPath, currentVersion),
+    source: 'bundled',
+    fetchedAt: 0
+  }
 }
 
 export async function checkForUpdates(currentVersion: string): Promise<UpdateCheckResult> {
@@ -74,11 +210,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
   const timer = setTimeout(() => controller.abort(), 20000)
   try {
     const response = await fetch(RELEASES_API, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'AgentRoles/' + currentVersion
-      },
+      headers: headers(currentVersion),
       signal: controller.signal
     })
 

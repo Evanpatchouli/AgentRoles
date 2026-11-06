@@ -20,7 +20,7 @@ import type { AgentManager } from './engine/runner'
 import type { IngressServer } from './ingress/server'
 import { streamChat } from './engine/llm'
 import { listModelsForProvider } from './engine/models'
-import { checkForUpdates } from './update'
+import { checkForUpdates, getWhatsNew } from './update'
 
 interface IpcDeps {
   store: Store
@@ -158,6 +158,17 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('app:state', () => deps.getState())
 
   ipcMain.handle('updates:check', () => checkForUpdates(app.getVersion()))
+
+  ipcMain.handle('updates:whatsNew', (_event, force?: boolean) => {
+    const resources = app.isPackaged
+      ? process.resourcesPath
+      : path.join(app.getAppPath(), 'resources')
+    return getWhatsNew(app.getVersion(), {
+      cacheDir: store.dataDir,
+      fallbackPath: path.join(resources, 'changelog.json'),
+      force: Boolean(force)
+    })
+  })
 
   ipcMain.handle('window:new', () => {
     deps.openWindow()
