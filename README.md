@@ -106,6 +106,7 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 - 支持刷新；有更新时可直接进入「检查更新」弹窗
 - Release 说明使用 Markdown 渲染，外部链接通过系统浏览器打开
 - 暂无 Release 或网络不可用时，使用内置 `resources/changelog.json` 兜底
+- 启动时静默检查最新版本；有未读版本时，「新功能」右侧显示圆点，打开后自动记录已读版本（多窗口共享）
 
 ## 内置技能
 
@@ -212,7 +213,7 @@ npm run test:models         # 模型列表接口（OpenAI 兼容 / Anthropic）
 npm run test:integrations   # MCP Server + CLI
 npm run test:update         # 语义化版本比较
 npm run test:migration      # 旧版单会话消息迁移到默认会话
-npm run test:e2e            # Playwright：工具循环、多会话/右键菜单、头像、主题与外部 session 路由
+npm run test:e2e            # Playwright：工具循环、多会话/右键菜单、标题栏/新功能、头像、主题与外部 session 路由
 npm run test:all            # 全部
 ```
 

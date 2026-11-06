@@ -688,6 +688,7 @@ try {
   await page.locator('.topbar-more').click()
   await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
   await page.waitForSelector('.titlebar-submenu')
+  await page.waitForSelector('.titlebar-submenu .titlebar-menu-dot', { timeout: 10000 })
   await page.locator('.titlebar-menu-item').filter({ hasText: '新功能' }).click()
   await page.waitForSelector('.whats-new-card', { timeout: 20000 })
   await page.waitForTimeout(300)
@@ -697,7 +698,9 @@ try {
   assert.ok(whatsNewText.includes('v0.1.0'))
   assert.ok(whatsNewText.includes('测试版本更新记录'))
   assert.ok(whatsNewText.includes('当前版本'))
-  assert.ok(whatsNewText.includes('GitHub 最新数据'))
+  assert.ok(
+    whatsNewText.includes('GitHub 最新数据') || whatsNewText.includes('本地缓存')
+  )
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-whats-new.png') })
   await page.locator('.whats-new-actions .btn-ghost').click()
   await page.waitForFunction(() => !document.querySelector('.whats-new-card'))
@@ -707,6 +710,7 @@ try {
   await page.locator('.topbar-more').click()
   await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
   await page.waitForSelector('.titlebar-submenu')
+  assert.equal(await page.locator('.titlebar-submenu .titlebar-menu-dot').count(), 0)
   await page
     .locator('.titlebar-menu-item')
     .filter({ hasText: '检查更新' })

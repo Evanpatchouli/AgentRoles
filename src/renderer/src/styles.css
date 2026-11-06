@@ -4226,6 +4226,15 @@ pre,
   flex: none;
 }
 
+.titlebar-menu-dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .titlebar-menu-separator {
   height: 1px;
   margin: 4px 6px;

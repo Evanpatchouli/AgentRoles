@@ -11,6 +11,7 @@ import type {
   WhatsNewData
 } from '@shared/types'
 import { APP_FEEDBACK_URL } from '@shared/types'
+import { compareVersions } from '@shared/version'
 import { Sidebar, type MainView } from './components/Sidebar'
 import { AgentView } from './components/AgentView'
 import { InboxView } from './components/InboxView'
@@ -64,6 +65,8 @@ function latestSession(sessions: Session[], agentId: string): Session | undefine
   return sortSessions(active)[0] ?? sortSessions(all)[0]
 }
 
+const WHATS_NEW_SEEN_KEY = 'agentroles.lastSeenReleaseVersion'
+
 const THEME_OPTIONS: Array<{
   id: ThemeMode
   label: string
@@ -92,6 +95,7 @@ export default function App() {
   const [whatsNewData, setWhatsNewData] = useState<WhatsNewData | null>(null)
   const [whatsNewLoading, setWhatsNewLoading] = useState(false)
   const [whatsNewError, setWhatsNewError] = useState('')
+  const [whatsNewUnread, setWhatsNewUnread] = useState(false)
   const checkingUpdate = useRef(false)
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
   const inboxTimer = useRef<number | null>(null)
@@ -206,6 +210,41 @@ export default function App() {
       alive = false
     }
   }, [activeSessionId])
+
+  useEffect(() => {
+    let alive = true
+    const timer = window.setTimeout(async () => {
+      try {
+        const data = await window.api.getWhatsNew()
+        if (!alive || data.releases.length === 0) return
+        const latest = data.releases[0].version
+        let seen = window.localStorage.getItem(WHATS_NEW_SEEN_KEY)
+        if (!seen) {
+          seen = data.currentVersion
+          try {
+            window.localStorage.setItem(WHATS_NEW_SEEN_KEY, seen)
+          } catch {
+            /* ignore */
+          }
+        }
+        setWhatsNewUnread(compareVersions(latest, seen) > 0)
+      } catch {
+        /* 未读提示是增强功能，静默失败 */
+      }
+    }, 600)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent): void => {
+      if (event.key === WHATS_NEW_SEEN_KEY) setWhatsNewUnread(false)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   useEffect(() => {
     const unsubscribe = window.api.onAgentEvent((event: AgentEvent) => {
@@ -584,6 +623,15 @@ export default function App() {
     try {
       const data = await window.api.getWhatsNew(force)
       setWhatsNewData(data)
+      const latest = data.releases[0]?.version
+      if (latest) {
+        try {
+          window.localStorage.setItem(WHATS_NEW_SEEN_KEY, latest)
+        } catch {
+          /* ignore */
+        }
+        setWhatsNewUnread(false)
+      }
     } catch (error: any) {
       setWhatsNewError('读取版本记录失败：' + (error?.message ?? String(error)))
     } finally {
@@ -710,6 +758,7 @@ export default function App() {
             onZoom={(direction) => void window.api.zoomWindow(direction)}
             onToggleFullscreen={() => void window.api.toggleFullscreen()}
             onFeedback={() => void window.api.openExternal(APP_FEEDBACK_URL)}
+            hasUnreadWhatsNew={whatsNewUnread}
             onWhatsNew={() => void openWhatsNew()}
             onCheckUpdate={() => void checkUpdates()}
             onAbout={() => setAboutOpen(true)}

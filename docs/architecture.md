@@ -187,7 +187,7 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 - 本地服务不监听 0.0.0.0，不提供远程管理接口。
 - 主进程支持多窗口；标题栏更多菜单通过 IPC 执行新窗口、缩放、全屏与关闭。关闭窗口后应用驻留系统托盘，托盘可重新打开窗口或退出。
 - 检查更新由主进程请求 GitHub Releases latest（避免渲染进程 CORS），按语义化版本比较；有新版时展示版本、发布时间、Release 说明与安装包/Release 页面链接。
-- 「新功能」读取 Releases 列表（6 小时缓存），用内置 `resources/changelog.json` 作为无 Release/离线兜底；Release 说明经 Markdown 清洗后展示。
+- 「新功能」读取 Releases 列表（6 小时缓存），用内置 `resources/changelog.json` 作为无 Release/离线兜底；Release 说明经 Markdown 清洗后展示。启动时静默检查最新版本，未读版本在菜单显示圆点，打开后写入 `localStorage` 已读版本。
 
 ## 9. 验证策略
 

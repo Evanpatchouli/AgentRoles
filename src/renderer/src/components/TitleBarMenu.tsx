@@ -10,6 +10,7 @@ export function TitleBarMenu({
   onZoom,
   onToggleFullscreen,
   onFeedback,
+  hasUnreadWhatsNew,
   onWhatsNew,
   onCheckUpdate,
   onAbout
@@ -19,6 +20,7 @@ export function TitleBarMenu({
   onZoom: (direction: 'in' | 'out') => void
   onToggleFullscreen: () => void
   onFeedback: () => void
+  hasUnreadWhatsNew: boolean
   onWhatsNew: () => void
   onCheckUpdate: () => void
   onAbout: () => void
@@ -233,6 +235,7 @@ export function TitleBarMenu({
                     <button
                       className="titlebar-menu-item"
                       role="menuitem"
+                      aria-label={hasUnreadWhatsNew ? '新功能，有未读更新' : '新功能'}
                       onClick={() => {
                         close()
                         onWhatsNew()
@@ -242,6 +245,9 @@ export function TitleBarMenu({
                         <Icon name="sparkle" size={15} />
                       </span>
                       <span className="titlebar-menu-label">新功能</span>
+                      {hasUnreadWhatsNew ? (
+                        <span className="titlebar-menu-dot" aria-hidden="true" />
+                      ) : null}
                     </button>
                     <button
                       className="titlebar-menu-item"
