@@ -4362,3 +4362,91 @@ pre,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ---------- update dialog ---------- */
+
+.update-card {
+  width: min(520px, calc(100vw - 48px));
+}
+
+.update-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 24px;
+  margin-bottom: 20px;
+}
+
+.update-mark {
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  color: var(--accent);
+}
+
+.update-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.update-head h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.update-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.update-meta {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.update-latest {
+  color: var(--accent) !important;
+}
+
+.update-notes {
+  max-height: 150px;
+  overflow: auto;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg-soft);
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.update-actions {
+  gap: 8px;
+}
+
+.update-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-theme='light'] .update-card {
+  background: #fff;
+}

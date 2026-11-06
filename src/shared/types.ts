@@ -165,6 +165,25 @@ export const APP_FEEDBACK_URL = 'https://github.com/Evanpatchouli/AgentRoles/iss
 export const APP_INTRO =
   'AgentRoles 是一个本地优先的多角色 Agent 工作台，为每个角色配置独立职责、模型、技能与多会话，并通过 HTTP / MCP / CLI 接住来自其他 Agent 与工具的消息。'
 
+export interface UpdateInfo {
+  currentVersion: string
+  latestVersion: string
+  publishedAt: string
+  releaseName?: string
+  releaseUrl: string
+  downloadUrl: string
+  notes?: string
+  hasUpdate: boolean
+}
+
+export interface UpdateCheckResult {
+  ok: boolean
+  /** 仓库尚未发布任何 Release */
+  noRelease?: boolean
+  message?: string
+  info?: UpdateInfo
+}
+
 export interface AppState {
   agents: Agent[]
   sessions: Session[]
@@ -270,6 +289,7 @@ export interface AgentRolesApi {
   closeWindow(): Promise<void>
   zoomWindow(direction: 'in' | 'out'): Promise<void>
   toggleFullscreen(): Promise<void>
+  checkForUpdates(): Promise<UpdateCheckResult>
   sendMessage(sessionId: string, content: string): Promise<SendResult>
   processMessage(sessionId: string, messageId: string): Promise<StartRunResult>
   stopSession(sessionId: string): Promise<{ ok: boolean }>

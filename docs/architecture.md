@@ -186,6 +186,7 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 - 高风险技能默认关闭；终端命令限定工作区 cwd，文件路径做越界检查。
 - 本地服务不监听 0.0.0.0，不提供远程管理接口。
 - 主进程支持多窗口；标题栏更多菜单通过 IPC 执行新窗口、缩放、全屏与关闭。关闭窗口后应用驻留系统托盘，托盘可重新打开窗口或退出。
+- 检查更新由主进程请求 GitHub Releases latest（避免渲染进程 CORS），按语义化版本比较；有新版时展示版本、发布时间、Release 说明与安装包/Release 页面链接。
 
 ## 9. 验证策略
 
@@ -194,6 +195,7 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 | ~~~npm run typecheck~~~ | 主进程与渲染进程类型 |
 | ~~~npm run test:notion~~~ | 模拟 Notion API，验证创建/查询/更新与属性映射 |
 | ~~~npm run test:integrations~~~ | CLI 与 MCP Server 对 HTTP 入口的调用 |
+| ~~~npm run test:update~~~ | 语义化版本比较（含预发布版本） |
 | ~~~npm run test:migration~~~ | 旧版单会话消息迁移为默认会话 |
 | ~~~npm run test:e2e~~~ | Playwright 启动真实 Electron，mock 模型完成工具循环、多会话创建/切换/隔离、外部消息按 session 路由 |
 

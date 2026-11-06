@@ -66,6 +66,26 @@ const modelServer = http.createServer((request, response) => {
     )
     return
   }
+  if (request.method === 'GET' && request.url === '/releases/latest') {
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(
+      JSON.stringify({
+        tag_name: 'v0.1.1',
+        name: 'AgentRoles v0.1.1',
+        published_at: '2026-11-06T10:00:00Z',
+        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.1',
+        body: '测试更新说明：修复若干问题。',
+        assets: [
+          {
+            name: 'AgentRoles Setup 0.1.1.exe',
+            browser_download_url:
+              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.1/AgentRoles-Setup-0.1.1.exe'
+          }
+        ]
+      })
+    )
+    return
+  }
   let body = ''
   request.on('data', (chunk) => {
     body += chunk
@@ -126,7 +146,11 @@ console.log('[e2e] mock model on', modelPort)
 const app = await electron.launch({
   args: ['.'],
   cwd: root,
-  env: { ...process.env, AGENTROLES_USER_DATA: userData }
+  env: {
+    ...process.env,
+    AGENTROLES_USER_DATA: userData,
+    AGENTROLES_RELEASES_API: 'http://127.0.0.1:' + modelPort + '/releases/latest'
+  }
 })
 const appPid = app.process().pid
 
@@ -604,7 +628,7 @@ try {
   await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
   await page.waitForSelector('.titlebar-submenu')
   const helpMenu = page.locator('.titlebar-submenu')
-  for (const label of ['文档', '新功能', '检查更新']) {
+  for (const label of ['文档', '新功能']) {
     assert.equal(
       await helpMenu.locator('.titlebar-menu-item').filter({ hasText: label }).isDisabled(),
       true,
@@ -613,6 +637,10 @@ try {
   }
   assert.equal(
     await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '反馈' }).isDisabled(),
+    false
+  )
+  assert.equal(
+    await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '检查更新' }).isDisabled(),
     false
   )
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-titlebar-help.png') })
@@ -632,6 +660,26 @@ try {
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-about.png') })
   await page.locator('.about-actions .btn').click()
   await page.waitForFunction(() => !document.querySelector('.about-card'))
+
+  // 检查更新：GitHub Release API（E2E 使用本地 mock）
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
+  await page.waitForSelector('.titlebar-submenu')
+  await page
+    .locator('.titlebar-menu-item')
+    .filter({ hasText: '检查更新' })
+    .click()
+  await page.waitForSelector('.update-card', { timeout: 20000 })
+  await page.waitForTimeout(300)
+  const updateText = await page.locator('.update-card').innerText()
+  assert.ok(updateText.includes('发现新版本'))
+  assert.ok(updateText.includes('v0.1.1'))
+  assert.ok(updateText.includes('v0.1.0'))
+  assert.ok(updateText.includes('测试更新说明'))
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-update.png') })
+  await page.locator('.update-actions .btn-ghost').click()
+  await page.waitForFunction(() => !document.querySelector('.update-card'))
+  console.log('[e2e] update check + update dialog OK')
 
   // 新窗口：从菜单打开，再用新窗口的“关闭”关闭它，主窗口不退出
   const newWindowPromise = app.waitForEvent('window')

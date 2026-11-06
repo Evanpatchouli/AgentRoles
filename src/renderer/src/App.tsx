@@ -6,7 +6,8 @@ import type {
   AppState,
   ChatMessage,
   Session,
-  ThemeMode
+  ThemeMode,
+  UpdateInfo
 } from '@shared/types'
 import { APP_FEEDBACK_URL } from '@shared/types'
 import { Sidebar, type MainView } from './components/Sidebar'
@@ -17,6 +18,7 @@ import { Icon, LogoMark } from './components/Icons'
 import { ConfirmDialog, ToastStack } from './components/Primitives'
 import { TitleBarMenu } from './components/TitleBarMenu'
 import { AboutDialog } from './components/AboutDialog'
+import { UpdateDialog } from './components/UpdateDialog'
 
 type Tab = 'chat' | 'skills' | 'role' | 'model'
 
@@ -82,6 +84,9 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updateOpen, setUpdateOpen] = useState(false)
+  const checkingUpdate = useRef(false)
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
   const inboxTimer = useRef<number | null>(null)
   const themeRequest = useRef(0)
@@ -109,12 +114,13 @@ export default function App() {
     return () => media.removeEventListener('change', onChange)
   }, [state?.settings.theme])
 
-  const notify = useCallback((kind: Toast['kind'], text: string) => {
+  const notify = useCallback((kind: Toast['kind'], text: string): string => {
     const id = Date.now() + '-' + Math.random().toString(16).slice(2)
     setToasts((prev) => [...prev, { id, kind, text }])
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((item) => item.id !== id))
     }, 4600)
+    return id
   }, [])
 
   const refreshInbox = useCallback(async () => {
@@ -523,6 +529,48 @@ export default function App() {
     [activeSessionId, applySessionUpdate, notify, state]
   )
 
+  const checkUpdates = useCallback(async () => {
+    if (checkingUpdate.current) return
+    checkingUpdate.current = true
+    const toastId = notify('info', '正在检查更新…')
+    try {
+      const result = await window.api.checkForUpdates()
+      if (!result.ok) {
+        notify('error', result.message || '检查更新失败')
+        return
+      }
+      if (result.noRelease) {
+        notify('info', result.message || '项目暂未发布 Release')
+        return
+      }
+      if (!result.info) {
+        notify('error', '检查更新失败：返回信息为空')
+        return
+      }
+      if (!result.info.hasUpdate) {
+        notify('success', '已是最新版本（' + result.info.latestVersion + '）')
+        return
+      }
+      setUpdateInfo(result.info)
+      setUpdateOpen(true)
+    } catch (error: any) {
+      notify('error', '检查更新失败：' + (error?.message ?? String(error)))
+    } finally {
+      checkingUpdate.current = false
+      setToasts((prev) => prev.filter((item) => item.id !== toastId))
+    }
+  }, [notify])
+
+  const downloadUpdate = useCallback(async () => {
+    if (!updateInfo) return
+    try {
+      await window.api.openExternal(updateInfo.downloadUrl || updateInfo.releaseUrl)
+      setUpdateOpen(false)
+    } catch (error: any) {
+      notify('error', '打开下载链接失败：' + (error?.message ?? String(error)))
+    }
+  }, [notify, updateInfo])
+
   const changeTheme = useCallback(
     async (theme: ThemeMode) => {
       const requestId = ++themeRequest.current
@@ -642,6 +690,7 @@ export default function App() {
             onZoom={(direction) => void window.api.zoomWindow(direction)}
             onToggleFullscreen={() => void window.api.toggleFullscreen()}
             onFeedback={() => void window.api.openExternal(APP_FEEDBACK_URL)}
+            onCheckUpdate={() => void checkUpdates()}
             onAbout={() => setAboutOpen(true)}
           />
           <span className="topbar-divider" />
@@ -778,6 +827,13 @@ export default function App() {
         version={state.version}
         releaseDate={state.releaseDate}
         onClose={() => setAboutOpen(false)}
+      />
+
+      <UpdateDialog
+        open={updateOpen}
+        info={updateInfo}
+        onClose={() => setUpdateOpen(false)}
+        onDownload={() => void downloadUpdate()}
       />
 
       <ConfirmDialog

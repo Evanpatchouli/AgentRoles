@@ -10,6 +10,7 @@ export function TitleBarMenu({
   onZoom,
   onToggleFullscreen,
   onFeedback,
+  onCheckUpdate,
   onAbout
 }: {
   onNewWindow: () => void
@@ -17,6 +18,7 @@ export function TitleBarMenu({
   onZoom: (direction: 'in' | 'out') => void
   onToggleFullscreen: () => void
   onFeedback: () => void
+  onCheckUpdate: () => void
   onAbout: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -253,8 +255,10 @@ export function TitleBarMenu({
                     <button
                       className="titlebar-menu-item"
                       role="menuitem"
-                      disabled
-                      title="暂未提供"
+                      onClick={() => {
+                        close()
+                        onCheckUpdate()
+                      }}
                     >
                       <span className="titlebar-menu-icon">
                         <Icon name="refresh" size={15} />

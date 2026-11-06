@@ -15,6 +15,7 @@ const api: AgentRolesApi = {
   closeWindow: () => ipcRenderer.invoke('window:close'),
   zoomWindow: (direction) => ipcRenderer.invoke('window:zoom', direction),
   toggleFullscreen: () => ipcRenderer.invoke('window:fullscreen'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   sendMessage: (sessionId, content) =>
     ipcRenderer.invoke('messages:send', sessionId, content),
   processMessage: (sessionId, messageId) =>
