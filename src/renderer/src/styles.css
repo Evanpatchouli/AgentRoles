@@ -4006,3 +4006,112 @@ pre,
 [data-theme='light'] .session-menu-item:focus-visible {
   background: rgba(30, 35, 24, 0.055);
 }
+
+/* ---------- accent swatch tooltips ---------- */
+
+.swatch {
+  position: relative;
+}
+
+.swatch:hover,
+.swatch:focus-visible {
+  z-index: 20;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.swatch-tooltip {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  min-width: max-content;
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -3px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s ease;
+}
+
+.swatch-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: var(--panel);
+}
+
+.swatch:hover .swatch-tooltip,
+.swatch:focus-visible .swatch-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+/* 首尾色块向内侧对齐，避免提示浮层越出表单卡片 */
+.swatch:first-child .swatch-tooltip {
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.swatch:first-child:hover .swatch-tooltip,
+.swatch:first-child:focus-visible .swatch-tooltip {
+  transform: translate(0, 0);
+}
+
+.swatch:first-child .swatch-tooltip::after {
+  left: 12px;
+}
+
+.swatch:last-child .swatch-tooltip {
+  right: 0;
+  left: auto;
+  transform: translate(0, -3px);
+}
+
+.swatch:last-child:hover .swatch-tooltip,
+.swatch:last-child:focus-visible .swatch-tooltip {
+  transform: translate(0, 0);
+}
+
+.swatch:last-child .swatch-tooltip::after {
+  right: 12px;
+  left: auto;
+}
+
+.swatch-tooltip-name {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.swatch-tooltip-meta {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+[data-theme='light'] .swatch-tooltip {
+  background: #fff;
+}
+
+[data-theme='light'] .swatch-tooltip::after {
+  border-bottom-color: #fff;
+}

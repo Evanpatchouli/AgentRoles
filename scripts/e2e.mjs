@@ -470,6 +470,29 @@ try {
 
   // 角色头像上传：选择本地图片 -> 压缩 -> 保存 -> 侧栏/标题区生效
   await page.locator('.tab').filter({ hasText: '角色' }).click()
+
+  // 强调色色弱辅助：悬浮每个色块显示颜色名称与色值
+  const colorNames = ['青柠绿', '天蓝', '珊瑚橙', '薰衣草紫', '薄荷青', '暖黄', '樱花粉', '浅草绿']
+  for (let index = 0; index < colorNames.length; index += 1) {
+    const swatch = page.locator('.swatch').nth(index)
+    await swatch.hover()
+    const tooltip = swatch.locator('.swatch-tooltip')
+    await tooltip.waitFor({ state: 'visible' })
+    const tooltipText = await tooltip.innerText()
+    assert.ok(tooltipText.includes(colorNames[index]), 'missing color name ' + colorNames[index])
+    assert.ok(tooltipText.includes('#'))
+  }
+  await page.locator('.swatch').first().hover()
+  await page.waitForTimeout(180)
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-swatch-tooltip.png') })
+  const accentHint = await page
+    .locator('.field-hint')
+    .filter({ hasText: '当前：' })
+    .first()
+    .innerText()
+  assert.ok(accentHint.includes('#'))
+  console.log('[e2e] accent color tooltips OK')
+
   await page.locator('input[type=file]').setInputFiles(path.join(root, 'build', 'icon.png'))
   await page.waitForSelector('.avatar-preview img', { timeout: 15000 })
   const avatarSource = await page.locator('.avatar-preview img').getAttribute('src')

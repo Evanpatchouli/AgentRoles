@@ -4,7 +4,16 @@ import { Field, SectionTitle, Spinner, Toggle } from './Primitives'
 import { Icon } from './Icons'
 import { AvatarContent } from './Avatar'
 
-const COLORS = ['#c9f36b', '#79c7ff', '#ff9f7d', '#c4a7ff', '#6fe0c2', '#ffd166', '#f78fb3', '#9be6a8']
+const COLORS = [
+  { value: '#c9f36b', name: '青柠绿', hint: '明亮黄绿' },
+  { value: '#79c7ff', name: '天蓝', hint: '清透浅蓝' },
+  { value: '#ff9f7d', name: '珊瑚橙', hint: '暖橙偏粉' },
+  { value: '#c4a7ff', name: '薰衣草紫', hint: '柔和浅紫' },
+  { value: '#6fe0c2', name: '薄荷青', hint: '清亮蓝绿' },
+  { value: '#ffd166', name: '暖黄', hint: '明亮金黄' },
+  { value: '#f78fb3', name: '樱花粉', hint: '柔和粉红' },
+  { value: '#9be6a8', name: '浅草绿', hint: '柔和浅绿' }
+]
 
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const AVATAR_MAX_BYTES = 8 * 1024 * 1024
@@ -127,6 +136,7 @@ export function RolePanel({
   }, [agent])
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(agent)
+  const activeColor = COLORS.find((color) => color.value === draft.color)
 
   async function save(): Promise<void> {
     setSaving(true)
@@ -274,17 +284,37 @@ export function RolePanel({
             />
           </Field>
 
-          <Field label="强调色" hint="用于头像与界面点缀。">
+          <Field
+            label="强调色"
+            hint={
+              activeColor
+                ? '用于头像与界面点缀。当前：' +
+                  activeColor.name +
+                  ' · ' +
+                  activeColor.value.toUpperCase()
+                : '用于头像与界面点缀。'
+            }
+          >
             <div className="swatches">
               {COLORS.map((color) => (
                 <button
-                  key={color}
+                  key={color.value}
                   type="button"
-                  className={'swatch' + (draft.color === color ? ' is-active' : '')}
-                  style={{ background: color }}
-                  onClick={() => setDraft({ ...draft, color })}
-                  aria-label={'选择颜色 ' + color}
-                />
+                  className={'swatch' + (draft.color === color.value ? ' is-active' : '')}
+                  style={{ background: color.value }}
+                  onClick={() => setDraft({ ...draft, color: color.value })}
+                  aria-label={
+                    '选择强调色：' + color.name + '，' + color.hint + '，' + color.value.toUpperCase()
+                  }
+                  aria-pressed={draft.color === color.value}
+                >
+                  <span className="swatch-tooltip" role="tooltip">
+                    <span className="swatch-tooltip-name">{color.name}</span>
+                    <span className="swatch-tooltip-meta">
+                      {color.hint} · {color.value.toUpperCase()}
+                    </span>
+                  </span>
+                </button>
               ))}
             </div>
           </Field>
