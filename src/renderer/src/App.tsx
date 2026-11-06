@@ -8,12 +8,15 @@ import type {
   Session,
   ThemeMode
 } from '@shared/types'
+import { APP_FEEDBACK_URL } from '@shared/types'
 import { Sidebar, type MainView } from './components/Sidebar'
 import { AgentView } from './components/AgentView'
 import { InboxView } from './components/InboxView'
 import { SettingsView } from './components/SettingsView'
 import { Icon, LogoMark } from './components/Icons'
 import { ConfirmDialog, ToastStack } from './components/Primitives'
+import { TitleBarMenu } from './components/TitleBarMenu'
+import { AboutDialog } from './components/AboutDialog'
 
 type Tab = 'chat' | 'skills' | 'role' | 'model'
 
@@ -78,6 +81,7 @@ export default function App() {
   const [inbox, setInbox] = useState<ChatMessage[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
   const inboxTimer = useRef<number | null>(null)
   const themeRequest = useRef(0)
@@ -632,6 +636,14 @@ export default function App() {
             <LogoMark size={19} />
           </span>
           <span className="topbar-wordmark">AgentRoles</span>
+          <TitleBarMenu
+            onNewWindow={() => void window.api.newWindow()}
+            onCloseWindow={() => void window.api.closeWindow()}
+            onZoom={(direction) => void window.api.zoomWindow(direction)}
+            onToggleFullscreen={() => void window.api.toggleFullscreen()}
+            onFeedback={() => void window.api.openExternal(APP_FEEDBACK_URL)}
+            onAbout={() => setAboutOpen(true)}
+          />
           <span className="topbar-divider" />
           <span className="topbar-scope">
             {view === 'agents' ? '角色工作台' : view === 'inbox' ? '收件箱' : '设置'}
@@ -759,6 +771,13 @@ export default function App() {
       <ToastStack
         toasts={toasts}
         onDismiss={(id) => setToasts((prev) => prev.filter((item) => item.id !== id))}
+      />
+
+      <AboutDialog
+        open={aboutOpen}
+        version={state.version}
+        releaseDate={state.releaseDate}
+        onClose={() => setAboutOpen(false)}
       />
 
       <ConfirmDialog

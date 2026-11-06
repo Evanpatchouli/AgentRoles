@@ -159,6 +159,12 @@ export interface SkillMeta {
   toolNames: string[]
 }
 
+// 发布新版本时同步更新这里的最新发布时间
+export const APP_RELEASE_DATE = '2026-11-07'
+export const APP_FEEDBACK_URL = 'https://github.com/Evanpatchouli/AgentRoles/issues'
+export const APP_INTRO =
+  'AgentRoles 是一个本地优先的多角色 Agent 工作台，为每个角色配置独立职责、模型、技能与多会话，并通过 HTTP / MCP / CLI 接住来自其他 Agent 与工具的消息。'
+
 export interface AppState {
   agents: Agent[]
   sessions: Session[]
@@ -167,6 +173,7 @@ export interface AppState {
   skills: SkillMeta[]
   running: Record<string, AgentRuntimeState>
   version: string
+  releaseDate: string
   dataDir: string
 }
 
@@ -259,6 +266,10 @@ export interface AgentRolesApi {
   deleteAgent(id: string): Promise<{ ok: boolean }>
   createSession(agentId: string): Promise<Session>
   updateSession(sessionId: string, patch: SessionPatch): Promise<Session>
+  newWindow(): Promise<void>
+  closeWindow(): Promise<void>
+  zoomWindow(direction: 'in' | 'out'): Promise<void>
+  toggleFullscreen(): Promise<void>
   sendMessage(sessionId: string, content: string): Promise<SendResult>
   processMessage(sessionId: string, messageId: string): Promise<StartRunResult>
   stopSession(sessionId: string): Promise<{ ok: boolean }>

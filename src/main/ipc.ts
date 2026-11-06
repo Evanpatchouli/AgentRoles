@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomBytes } from 'node:crypto'
@@ -28,6 +28,7 @@ interface IpcDeps {
   restartIngress: () => Promise<IngressInfo>
   getState: () => AppState
   applyTheme: (theme: ThemeMode) => void
+  openWindow: () => void
 }
 
 function normalizeWorkspace(value: string): string {
@@ -154,6 +155,27 @@ export function registerIpc(deps: IpcDeps): void {
   const { store, manager, ingress } = deps
 
   ipcMain.handle('app:state', () => deps.getState())
+
+  ipcMain.handle('window:new', () => {
+    deps.openWindow()
+  })
+
+  ipcMain.handle('window:close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
+  })
+
+  ipcMain.handle('window:zoom', (event, direction: 'in' | 'out') => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || (direction !== 'in' && direction !== 'out')) return
+    const current = window.webContents.getZoomFactor()
+    const next = current + (direction === 'in' ? 0.1 : -0.1)
+    window.webContents.setZoomFactor(Number(Math.min(2, Math.max(0.5, next)).toFixed(2)))
+  })
+
+  ipcMain.handle('window:fullscreen', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window) window.setFullScreen(!window.isFullScreen())
+  })
 
   ipcMain.handle('messages:list', (_event, sessionId: string) => {
     return store.getMessages(sessionId)

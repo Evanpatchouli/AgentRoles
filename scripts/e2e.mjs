@@ -534,6 +534,143 @@ try {
   await page.waitForTimeout(400)
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-light-chat.png') })
   console.log('[e2e] theme switching + persistence OK')
+
+  // 标题栏更多菜单：一级/二级菜单、缩放、全屏、关于
+  await page.locator('.topbar-more').click()
+  await page.waitForSelector('.titlebar-menu')
+  await page.waitForFunction(() => {
+    const menu = document.querySelector('.titlebar-menu')
+    return Boolean(menu && getComputedStyle(menu).visibility === 'visible')
+  })
+  const topMenuLabels = (
+    await page.locator('.titlebar-menu .titlebar-menu-label').allTextContents()
+  ).map((label) => label.trim())
+  assert.deepEqual(topMenuLabels, ['新窗口', '视图', '帮助', '关闭'])
+  await page.locator('.titlebar-menu-item').filter({ hasText: '视图' }).hover()
+  await page.waitForSelector('.titlebar-submenu')
+  const viewMenuLabels = (
+    await page.locator('.titlebar-submenu .titlebar-menu-label').allTextContents()
+  ).map((label) => label.trim())
+  assert.deepEqual(viewMenuLabels, ['放大', '缩小', '切换全屏'])
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-titlebar-menu.png') })
+
+  await page
+    .locator('.titlebar-submenu .titlebar-menu-item')
+    .filter({ hasText: '放大' })
+    .click()
+  const zoomedIn = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.getZoomFactor()
+  )
+  assert.ok(zoomedIn > 1, 'zoom in should increase zoom factor')
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '视图' }).hover()
+  await page
+    .locator('.titlebar-submenu .titlebar-menu-item')
+    .filter({ hasText: '缩小' })
+    .click()
+  const zoomedOut = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.getZoomFactor()
+  )
+  assert.ok(zoomedOut < zoomedIn, 'zoom out should decrease zoom factor')
+
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '视图' }).hover()
+  await page
+    .locator('.titlebar-submenu .titlebar-menu-item')
+    .filter({ hasText: '切换全屏' })
+    .click()
+  await page.waitForTimeout(350)
+  assert.equal(
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isFullScreen()
+    ),
+    true
+  )
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '视图' }).hover()
+  await page
+    .locator('.titlebar-submenu .titlebar-menu-item')
+    .filter({ hasText: '切换全屏' })
+    .click()
+  await page.waitForTimeout(350)
+  assert.equal(
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isFullScreen()
+    ),
+    false
+  )
+
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
+  await page.waitForSelector('.titlebar-submenu')
+  const helpMenu = page.locator('.titlebar-submenu')
+  for (const label of ['文档', '新功能', '检查更新']) {
+    assert.equal(
+      await helpMenu.locator('.titlebar-menu-item').filter({ hasText: label }).isDisabled(),
+      true,
+      label + ' should be disabled'
+    )
+  }
+  assert.equal(
+    await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '反馈' }).isDisabled(),
+    false
+  )
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-titlebar-help.png') })
+
+  await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '关于' }).click()
+  await page.waitForSelector('.about-card')
+  const aboutText = await page.locator('.about-card').innerText()
+  const packageVersion = JSON.parse(
+    fs.readFileSync(path.join(root, 'package.json'), 'utf8')
+  ).version
+  assert.ok(aboutText.includes('AgentRoles'))
+  assert.ok(aboutText.includes('最新发布时间'))
+  assert.match(aboutText, /\d{4}-\d{2}-\d{2}/)
+  assert.ok(aboutText.includes('v' + packageVersion))
+  assert.ok(aboutText.includes('多角色 Agent'))
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-about.png') })
+  await page.locator('.about-actions .btn').click()
+  await page.waitForFunction(() => !document.querySelector('.about-card'))
+
+  // 新窗口：从菜单打开，再用新窗口的“关闭”关闭它，主窗口不退出
+  const newWindowPromise = app.waitForEvent('window')
+  await page.locator('.topbar-more').click()
+  await page.locator('.titlebar-menu-item').filter({ hasText: '新窗口' }).click()
+  const newPage = await newWindowPromise
+  await newPage.waitForSelector('.topbar-more', { timeout: 20000 })
+  assert.ok(app.windows().length >= 2)
+  await newPage.locator('.topbar-more').click()
+  const newPageClosed = newPage.waitForEvent('close')
+  try {
+    await newPage
+      .locator('.titlebar-menu-item')
+      .filter({ hasText: '关闭' })
+      .evaluate((button) => button.click())
+  } catch (error) {
+    // 点击关闭后页面会立即销毁，Playwright 可能来不及返回 evaluate 结果。
+    if (!newPage.isClosed()) throw error
+  }
+  await newPageClosed
+  assert.equal(page.isClosed(), false)
+  assert.ok(app.windows().length >= 1)
+
+  // 关闭最后一个窗口：窗口消失，但应用仍驻留（托盘）
+  await page.locator('.topbar-more').click()
+  const originalClosed = page.waitForEvent('close')
+  try {
+    await page
+      .locator('.titlebar-menu-item')
+      .filter({ hasText: '关闭' })
+      .evaluate((button) => button.click())
+  } catch (error) {
+    if (!page.isClosed()) throw error
+  }
+  await originalClosed
+  assert.equal(app.windows().length, 0)
+  assert.equal(await app.evaluate(({ app }) => app.isReady()), true)
+  console.log('[e2e] titlebar menu / zoom / fullscreen / about / multi-window / close-to-tray OK')
+
   console.log('[e2e] PASS')
 } finally {
   await app.evaluate(({ app }) => app.quit()).catch(() => undefined)

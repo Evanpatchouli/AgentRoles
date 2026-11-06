@@ -143,6 +143,17 @@ const paths: Record<string, ReactNode> = {
       <path d="M12 18v.3" />
     </>
   ),
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.35" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.35" fill="currentColor" stroke="none" />
+    </>
+  ),
+  minus: <path d="M5 12h14" />,
+  maximize: (
+    <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
+  ),
   chevronDown: <path d="M6 9l6 6 6-6" />,
   chevronRight: <path d="M9 6l6 6-6 6" />,
   message: (

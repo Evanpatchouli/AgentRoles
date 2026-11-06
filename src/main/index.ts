@@ -1,7 +1,16 @@
-import { app, BrowserWindow, Menu, nativeTheme, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  shell,
+  Tray
+} from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { AgentEvent, AppState, IngressInfo, ThemeMode } from '@shared/types'
+import { APP_RELEASE_DATE } from '@shared/types'
 import { Store } from './store'
 import { AgentManager } from './engine/runner'
 import { IngressServer } from './ingress/server'
@@ -17,6 +26,13 @@ let store: Store
 let manager: AgentManager
 let ingress: IngressServer
 let mainWindow: BrowserWindow | null = null
+const windows = new Set<BrowserWindow>()
+let tray: Tray | null = null
+let quitting = false
+
+function resourcesDir(): string {
+  return app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources')
+}
 
 function broadcast(event: AgentEvent): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -34,6 +50,7 @@ function getState(): AppState {
     skills: skillMetas(),
     running: manager.getRuntimeStates(),
     version: app.getVersion(),
+    releaseDate: APP_RELEASE_DATE,
     dataDir: store.dataDir
   }
 }
@@ -65,14 +82,14 @@ function applyTheme(theme: ThemeMode): void {
   applyWindowChrome()
 }
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const isDev = Boolean(process.env.ELECTRON_RENDERER_URL)
   const query: Record<string, string> = {}
   if (process.env.AGENTROLES_VIEW) query.view = process.env.AGENTROLES_VIEW
   if (process.env.AGENTROLES_TAB) query.tab = process.env.AGENTROLES_TAB
   const chrome = chromeColors()
 
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1360,
     height: 880,
     minWidth: 1080,
@@ -81,10 +98,7 @@ function createWindow(): void {
     backgroundColor: chrome.background,
     title: 'AgentRoles',
     autoHideMenuBar: true,
-    icon: path.join(
-      app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'),
-      'icon.png'
-    ),
+    icon: path.join(resourcesDir(), 'icon.png'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     ...(process.platform !== 'darwin'
       ? {
@@ -103,15 +117,21 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  windows.add(window)
+  mainWindow = window
+  window.once('ready-to-show', () => window.show())
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    const current = mainWindow?.webContents.getURL() ?? ''
-    if (url !== current && !url.startsWith('http://localhost') && !url.startsWith('http://127.0.0.1')) {
+  window.webContents.on('will-navigate', (event, url) => {
+    const current = window.webContents.getURL()
+    if (
+      url !== current &&
+      !url.startsWith('http://localhost') &&
+      !url.startsWith('http://127.0.0.1')
+    ) {
       event.preventDefault()
     }
   })
@@ -119,21 +139,24 @@ function createWindow(): void {
   if (isDev) {
     const url = new URL(process.env.ELECTRON_RENDERER_URL as string)
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
-    void mainWindow.loadURL(url.toString())
+    void window.loadURL(url.toString())
   } else {
-    void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'), { query })
+    void window.loadFile(path.join(__dirname, '../renderer/index.html'), { query })
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  window.on('closed', () => {
+    windows.delete(window)
+    if (mainWindow === window) {
+      mainWindow = [...windows].at(-1) ?? null
+    }
   })
 
   const screenshotPath = process.env.AGENTROLES_SCREENSHOT
-  if (screenshotPath) {
-    mainWindow.webContents.once('did-finish-load', () => {
+  if (screenshotPath && windows.size === 1) {
+    window.webContents.once('did-finish-load', () => {
       setTimeout(async () => {
         try {
-          const image = await mainWindow?.webContents.capturePage()
+          const image = await window.webContents.capturePage()
           if (image) {
             await fs.mkdir(path.dirname(path.resolve(screenshotPath)), { recursive: true })
             await fs.writeFile(path.resolve(screenshotPath), image.toPNG())
@@ -146,6 +169,53 @@ function createWindow(): void {
         }
       }, Number(process.env.AGENTROLES_SCREENSHOT_DELAY) || 2200)
     })
+  }
+
+  return window
+}
+
+function focusOrCreateWindow(): void {
+  const target =
+    mainWindow && !mainWindow.isDestroyed()
+      ? mainWindow
+      : [...windows].find((window) => !window.isDestroyed())
+  if (target) {
+    if (target.isMinimized()) target.restore()
+    target.show()
+    target.focus()
+    return
+  }
+  if (!quitting) createWindow()
+}
+
+function createTray(): void {
+  if (tray) return
+  try {
+    const icon = nativeImage.createFromPath(path.join(resourcesDir(), 'icon.png'))
+    if (icon.isEmpty()) {
+      console.warn('[tray] icon not found; window close will quit the app')
+      return
+    }
+    tray = new Tray(icon.resize({ width: 16, height: 16 }))
+    tray.setToolTip('AgentRoles')
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: '打开主窗口', click: focusOrCreateWindow },
+        { label: '新建窗口', click: () => createWindow() },
+        { type: 'separator' },
+        {
+          label: '退出 AgentRoles',
+          click: () => {
+            quitting = true
+            app.quit()
+          }
+        }
+      ])
+    )
+    tray.on('click', focusOrCreateWindow)
+  } catch (error) {
+    console.error('[tray] create failed', error)
+    tray = null
   }
 }
 
@@ -208,8 +278,12 @@ async function bootstrap(): Promise<void> {
     ingress,
     restartIngress,
     getState,
-    applyTheme
+    applyTheme,
+    openWindow: () => {
+      createWindow()
+    }
   })
+  createTray()
   createWindow()
 }
 
@@ -218,10 +292,7 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
+    focusOrCreateWindow()
   })
 
   app.whenReady().then(bootstrap).catch((error) => {
@@ -230,14 +301,18 @@ if (!gotLock) {
   })
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    focusOrCreateWindow()
   })
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit()
+    // 关闭窗口不退出应用：托盘保持驻留，Agent 与外部接入可继续工作。
+    if (!tray && process.platform !== 'darwin') app.quit()
   })
 
   app.on('before-quit', () => {
+    quitting = true
+    tray?.destroy()
+    tray = null
     manager?.shutdown()
     void ingress?.stop()
     void store?.flush()

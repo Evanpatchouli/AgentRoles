@@ -11,6 +11,10 @@ const api: AgentRolesApi = {
   createSession: (agentId) => ipcRenderer.invoke('sessions:create', agentId),
   updateSession: (sessionId, patch) =>
     ipcRenderer.invoke('sessions:update', sessionId, patch),
+  newWindow: () => ipcRenderer.invoke('window:new'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
+  zoomWindow: (direction) => ipcRenderer.invoke('window:zoom', direction),
+  toggleFullscreen: () => ipcRenderer.invoke('window:fullscreen'),
   sendMessage: (sessionId, content) =>
     ipcRenderer.invoke('messages:send', sessionId, content),
   processMessage: (sessionId, messageId) =>
