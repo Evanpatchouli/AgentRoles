@@ -655,11 +655,7 @@ try {
   await page.locator('.titlebar-menu-item').filter({ hasText: '帮助' }).hover()
   await page.waitForSelector('.titlebar-submenu')
   const helpMenu = page.locator('.titlebar-submenu')
-  assert.equal(
-    await helpMenu.locator('.titlebar-menu-item').filter({ hasText: '文档' }).isDisabled(),
-    true
-  )
-  for (const label of ['新功能', '反馈', '检查更新']) {
+  for (const label of ['文档', '新功能', '反馈', '检查更新']) {
     assert.equal(
       await helpMenu.locator('.titlebar-menu-item').filter({ hasText: label }).isDisabled(),
       false,

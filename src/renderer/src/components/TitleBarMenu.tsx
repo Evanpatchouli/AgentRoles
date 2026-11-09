@@ -10,6 +10,7 @@ export function TitleBarMenu({
   onZoom,
   onToggleFullscreen,
   onFeedback,
+  onDocs,
   hasUnreadWhatsNew,
   onWhatsNew,
   onCheckUpdate,
@@ -20,6 +21,7 @@ export function TitleBarMenu({
   onZoom: (direction: 'in' | 'out') => void
   onToggleFullscreen: () => void
   onFeedback: () => void
+  onDocs: () => void
   hasUnreadWhatsNew: boolean
   onWhatsNew: () => void
   onCheckUpdate: () => void
@@ -224,8 +226,10 @@ export function TitleBarMenu({
                     <button
                       className="titlebar-menu-item"
                       role="menuitem"
-                      disabled
-                      title="暂未提供"
+                      onClick={() => {
+                        close()
+                        onDocs()
+                      }}
                     >
                       <span className="titlebar-menu-icon">
                         <Icon name="file" size={15} />

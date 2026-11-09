@@ -11,6 +11,8 @@ AgentRoles 是一个本地优先的桌面多 Agent 工作台。你可以为「�
 
 外部 Agent（Codex、Claude Code、DSH、脚本）可以通过 **HTTP / MCP / CLI** 把消息投递给指定角色。内置示例「需求记录员」会把需求整理成任务并写入你的 Notion。
 
+完整文档见 [docs/README.md](docs/README.md)。
+
 ![AgentRoles 主界面](docs/assets/agents.png)
 
 ## 核心能力
@@ -150,7 +152,9 @@ MCP 客户端（Codex / Claude Code / DSH）配置：
 }
 ```
 
-接入后，客户端会看到 `agentroles_list_agents` 与 `agentroles_send_message` 两个工具。
+接入后，客户端会看到三个工具：`agentroles_list_agents`、`agentroles_list_sessions`、`agentroles_send_message`。
+
+MCP 只能投递消息并返回接收回执，不能读取角色最终回复。完整能力边界、配置和多人使用限制见 [MCP 接入指南](docs/mcp.md) 与 [多人使用与安全](docs/multi-user.md)。
 
 CLI：
 
@@ -207,6 +211,7 @@ scripts/          测试与辅助脚本
 ## 开发与验证
 
 ```bash
+npm run docs:check          # 检查文档相对链接
 npm run typecheck           # 主进程 + 渲染进程
 npm run test:notion         # 用模拟 Notion API 验证属性映射
 npm run test:models         # 模型列表接口（OpenAI 兼容 / Anthropic）

@@ -96,6 +96,8 @@ curl -X POST "http://127.0.0.1:43110/v1/agents/需求记录员/messages" \
 
 ## 3. MCP Server
 
+> MCP 的完整工具说明、能力边界与 Codex 配置见 [MCP 接入指南](mcp.md)。多人共享前的安全说明见 [多人使用与安全](multi-user.md)。
+
 ~~~resources/mcp-server.mjs~~~ 是一个零依赖的 stdio MCP Server，负责把 MCP 工具调用转成上面的 HTTP 请求。
 
 直接运行：

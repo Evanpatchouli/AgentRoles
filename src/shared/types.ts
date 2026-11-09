@@ -162,6 +162,7 @@ export interface SkillMeta {
 // 发布新版本时同步更新这里的最新发布时间
 export const APP_RELEASE_DATE = '2026-11-07'
 export const APP_FEEDBACK_URL = 'https://github.com/Evanpatchouli/AgentRoles/issues'
+export const APP_DOCS_URL = 'https://github.com/Evanpatchouli/AgentRoles/tree/main/docs'
 export const APP_INTRO =
   'AgentRoles 是一个本地优先的多角色 Agent 工作台，为每个角色配置独立职责、模型、技能与多会话，并通过 HTTP / MCP / CLI 接住来自其他 Agent 与工具的消息。'
 

@@ -10,7 +10,7 @@ import type {
   UpdateInfo,
   WhatsNewData
 } from '@shared/types'
-import { APP_FEEDBACK_URL } from '@shared/types'
+import { APP_DOCS_URL, APP_FEEDBACK_URL } from '@shared/types'
 import { compareVersions } from '@shared/version'
 import { Sidebar, type MainView } from './components/Sidebar'
 import { AgentView } from './components/AgentView'
@@ -758,6 +758,7 @@ export default function App() {
             onZoom={(direction) => void window.api.zoomWindow(direction)}
             onToggleFullscreen={() => void window.api.toggleFullscreen()}
             onFeedback={() => void window.api.openExternal(APP_FEEDBACK_URL)}
+            onDocs={() => void window.api.openExternal(APP_DOCS_URL)}
             hasUnreadWhatsNew={whatsNewUnread}
             onWhatsNew={() => void openWhatsNew()}
             onCheckUpdate={() => void checkUpdates()}

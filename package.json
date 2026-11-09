@@ -14,10 +14,11 @@
     "test:e2e": "electron-vite build && node scripts/e2e.mjs",
     "test:integrations": "node scripts/test-integrations.mjs",
     "test:notion": "tsx scripts/test-notion.ts",
-    "test:all": "npm run typecheck && npm run test:notion && npm run test:models && npm run test:integrations && npm run test:update && npm run test:migration && npm run test:e2e",
+    "test:all": "npm run docs:check && npm run typecheck && npm run test:notion && npm run test:models && npm run test:integrations && npm run test:update && npm run test:migration && npm run test:e2e",
     "test:models": "tsx scripts/test-models.ts",
     "test:migration": "electron-vite build && node scripts/test-migration.mjs",
-    "test:update": "tsx scripts/test-update.ts"
+    "test:update": "tsx scripts/test-update.ts",
+    "docs:check": "node scripts/check-docs.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.17",
