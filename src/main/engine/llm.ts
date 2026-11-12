@@ -1,4 +1,4 @@
-import type { ModelSettings } from '@shared/types'
+import type { ChatAttachment, ModelSettings } from '@shared/types'
 
 export interface LlmTool {
   name: string
@@ -9,6 +9,7 @@ export interface LlmTool {
 export interface LlmMessage {
   role: 'user' | 'assistant' | 'tool'
   content: string
+  attachments?: ChatAttachment[]
   toolCalls?: Array<{ id: string; name: string; args: string }>
   toolCallId?: string
 }
@@ -120,6 +121,63 @@ function parseJson(value: string): any | null {
   }
 }
 
+function splitDataUrl(dataUrl: string): { mime: string; data: string } | null {
+  const match = /^data:([^;,]+);base64,(.+)$/s.exec(dataUrl)
+  return match ? { mime: match[1], data: match[2] } : null
+}
+
+function textAttachment(attachment: ChatAttachment): string {
+  return (
+    '【附件：' +
+    attachment.name +
+    '】\n' +
+    (attachment.text ?? '') +
+    (attachment.truncated ? '\n（附件内容已截断）' : '')
+  )
+}
+
+function binaryAttachmentNote(attachment: ChatAttachment): string {
+  return '【附件：' + attachment.name + '（' + attachment.mime + '，' + attachment.size + ' 字节）】当前模型无法直接读取该二进制文件内容。'
+}
+
+function openAiUserContent(message: LlmMessage): string | Array<Record<string, unknown>> {
+  if (!message.attachments?.length) return message.content
+  const parts: Array<Record<string, unknown>> = []
+  if (message.content) parts.push({ type: 'text', text: message.content })
+  for (const attachment of message.attachments) {
+    if (attachment.kind === 'image' && attachment.dataUrl) {
+      parts.push({ type: 'image_url', image_url: { url: attachment.dataUrl } })
+    } else if (attachment.text) {
+      parts.push({ type: 'text', text: textAttachment(attachment) })
+    } else {
+      parts.push({ type: 'text', text: binaryAttachmentNote(attachment) })
+    }
+  }
+  return parts.length > 0 ? parts : message.content
+}
+
+function responsesUserContent(message: LlmMessage): string | Array<Record<string, unknown>> {
+  if (!message.attachments?.length) return message.content
+  const parts: Array<Record<string, unknown>> = []
+  if (message.content) parts.push({ type: 'input_text', text: message.content })
+  for (const attachment of message.attachments) {
+    if (attachment.kind === 'image' && attachment.dataUrl) {
+      parts.push({ type: 'input_image', image_url: attachment.dataUrl })
+    } else if (attachment.text) {
+      parts.push({ type: 'input_text', text: textAttachment(attachment) })
+    } else if (attachment.mime === 'application/pdf' && attachment.dataUrl) {
+      parts.push({
+        type: 'input_file',
+        filename: attachment.name,
+        file_data: attachment.dataUrl
+      })
+    } else {
+      parts.push({ type: 'input_text', text: binaryAttachmentNote(attachment) })
+    }
+  }
+  return parts.length > 0 ? parts : message.content
+}
+
 async function openAiChat(
   model: ModelSettings,
   system: string,
@@ -132,7 +190,7 @@ async function openAiChat(
   const apiMessages: unknown[] = [{ role: 'system', content: system }]
   for (const message of messages) {
     if (message.role === 'user') {
-      apiMessages.push({ role: 'user', content: message.content })
+      apiMessages.push({ role: 'user', content: openAiUserContent(message) })
     } else if (message.role === 'assistant') {
       const toolCalls = (message.toolCalls ?? []).map((call) => ({
         id: call.id,
@@ -237,8 +295,39 @@ async function openAiChat(
   }
 }
 
-function anthropicBlocks(content: string): Array<Record<string, unknown>> {
-  return content ? [{ type: 'text', text: content }] : []
+function anthropicBlocks(
+  content: string,
+  attachments: ChatAttachment[] = []
+): Array<Record<string, unknown>> {
+  const blocks: Array<Record<string, unknown>> = []
+  if (content) blocks.push({ type: 'text', text: content })
+  for (const attachment of attachments) {
+    if (attachment.kind === 'image' && attachment.dataUrl) {
+      const data = splitDataUrl(attachment.dataUrl)
+      if (data) {
+        blocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: data.mime, data: data.data }
+        })
+      }
+    } else if (attachment.text) {
+      blocks.push({ type: 'text', text: textAttachment(attachment) })
+    } else if (
+      attachment.mime === 'application/pdf' &&
+      attachment.dataUrl
+    ) {
+      const data = splitDataUrl(attachment.dataUrl)
+      if (data) {
+        blocks.push({
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: data.data }
+        })
+      }
+    } else {
+      blocks.push({ type: 'text', text: binaryAttachmentNote(attachment) })
+    }
+  }
+  return blocks
 }
 
 function toAnthropicMessages(
@@ -260,7 +349,7 @@ function toAnthropicMessages(
 
   for (const message of messages) {
     if (message.role === 'user') {
-      push('user', anthropicBlocks(message.content))
+      push('user', anthropicBlocks(message.content, message.attachments))
     } else if (message.role === 'assistant') {
       const blocks: any[] = anthropicBlocks(message.content)
       for (const call of message.toolCalls ?? []) {
@@ -388,7 +477,7 @@ function toResponsesInput(messages: LlmMessage[]): any[] {
   const input: any[] = []
   for (const message of messages) {
     if (message.role === 'user') {
-      input.push({ role: 'user', content: message.content })
+      input.push({ role: 'user', content: responsesUserContent(message) })
     } else if (message.role === 'assistant') {
       if (message.content) {
         input.push({ role: 'assistant', content: message.content })

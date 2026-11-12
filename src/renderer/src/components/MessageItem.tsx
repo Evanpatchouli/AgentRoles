@@ -4,6 +4,7 @@ import { Icon } from './Icons'
 import { Markdown } from './Markdown'
 import { Spinner } from './Primitives'
 import { AvatarContent } from './Avatar'
+import { AttachmentList } from './AttachmentList'
 import { prettyToolName, sourceLabel, timeLabel, toolIcon } from '../lib/format'
 
 export function MessageItem({
@@ -42,7 +43,13 @@ export function MessageItem({
           {message.meta?.title ? (
             <div className="external-title">{String(message.meta.title)}</div>
           ) : null}
-          <div className="user-bubble">{message.content}</div>
+          {message.attachments?.length ? (
+            <AttachmentList
+              attachments={message.attachments}
+              className="message-attachment-list"
+            />
+          ) : null}
+          {message.content ? <div className="user-bubble">{message.content}</div> : null}
           {external ? (
             <div className="external-foot">
               <span className={'state-pill state-' + message.state}>
@@ -69,15 +76,19 @@ export function MessageItem({
                 </button>
               ) : null}
               <span className="external-foot-spacer" />
-              <span className="msg-copy">
-                <CopyMessage text={message.content} />
-              </span>
+              {message.content ? (
+                <span className="msg-copy">
+                  <CopyMessage text={message.content} />
+                </span>
+              ) : null}
             </div>
           ) : (
             <div className="user-meta">
-              <span className="msg-copy">
-                <CopyMessage text={message.content} />
-              </span>
+              {message.content ? (
+                <span className="msg-copy">
+                  <CopyMessage text={message.content} />
+                </span>
+              ) : null}
               <span>{timeLabel(message.createdAt)}</span>
             </div>
           )}

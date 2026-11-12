@@ -97,12 +97,26 @@ export interface SessionPatch {
   archived?: boolean
 }
 
+export interface ChatAttachment {
+  id: string
+  kind: 'image' | 'file'
+  name: string
+  mime: string
+  size: number
+  /** 图片、PDF 或二进制文件的数据 URL */
+  dataUrl?: string
+  /** 文本类文件的内容 */
+  text?: string
+  truncated?: boolean
+}
+
 export interface ChatMessage {
   id: string
   agentId: string
   sessionId: string
   role: 'user' | 'assistant'
   content: string
+  attachments?: ChatAttachment[]
   reasoning?: string
   toolCalls?: ToolCall[]
   state: MessageState
@@ -308,7 +322,11 @@ export interface AgentRolesApi {
   toggleFullscreen(): Promise<void>
   checkForUpdates(): Promise<UpdateCheckResult>
   getWhatsNew(force?: boolean): Promise<WhatsNewData>
-  sendMessage(sessionId: string, content: string): Promise<SendResult>
+  sendMessage(
+    sessionId: string,
+    content: string,
+    attachments?: ChatAttachment[]
+  ): Promise<SendResult>
   processMessage(sessionId: string, messageId: string): Promise<StartRunResult>
   stopSession(sessionId: string): Promise<{ ok: boolean }>
   clearMessages(sessionId: string): Promise<{ ok: boolean }>

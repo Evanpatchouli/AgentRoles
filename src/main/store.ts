@@ -535,7 +535,7 @@ export class Store {
       message.role === 'user'
         ? typeof message.meta?.title === 'string' && message.meta.title.trim()
           ? message.meta.title
-          : message.content
+          : message.content || message.attachments?.[0]?.name || ''
         : undefined
     this.touchSession(message.sessionId, titleHint)
     this.schedulePersistMessages(message.sessionId)

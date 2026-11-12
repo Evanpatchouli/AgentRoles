@@ -10,7 +10,10 @@ const root = process.cwd()
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'agentroles-e2e-'))
 const workspace = path.join(userData, 'workspace')
 fs.mkdirSync(workspace, { recursive: true })
+const attachmentFilePath = path.join(userData, 'attachment.txt')
+fs.writeFileSync(attachmentFilePath, '这是通过聊天附件上传的文本文件。\n第二行内容。', 'utf8')
 const ingressPort = 43177
+let attachmentPayloadSeen = false
 
 function writeConfig(modelPort) {
   const now = Date.now()
@@ -119,6 +122,14 @@ const modelServer = http.createServer((request, response) => {
   request.on('end', () => {
     const payload = JSON.parse(body || '{}')
     const messages = Array.isArray(payload.messages) ? payload.messages : []
+    const serializedMessages = JSON.stringify(messages)
+    if (
+      serializedMessages.includes('image_url') &&
+      serializedMessages.includes('attachment.txt') &&
+      serializedMessages.includes('这是通过聊天附件上传的文本文件')
+    ) {
+      attachmentPayloadSeen = true
+    }
     const hasToolResult = messages.some((message) => message.role === 'tool')
     response.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -206,6 +217,73 @@ try {
     { timeout: 30000 }
   )
   console.log('[e2e] assistant replied with tool loop')
+
+  // 附件：拖入、粘贴图片、+ 菜单与文件选择器
+  await page.evaluate((text) => {
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([text], '拖入说明.txt', { type: 'text/plain' }))
+    const target = document.querySelector('.chat')
+    for (const type of ['dragenter', 'dragover', 'drop']) {
+      target.dispatchEvent(
+        new DragEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: transfer
+        })
+      )
+    }
+  }, '这是拖拽进入聊天框的文件。')
+  await page.waitForSelector('.composer-attachment-list .attachment-file')
+  await page.locator('.composer-attachment-list .attachment-remove').click()
+
+  const imageBase64 = fs.readFileSync(path.join(root, 'build', 'icon.png')).toString('base64')
+  await page.evaluate((base64) => {
+    const binary = atob(base64)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    const file = new File([bytes], 'pasted.png', { type: 'image/png' })
+    const transfer = new DataTransfer()
+    transfer.items.add(file)
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { value: transfer })
+    document.querySelector('.composer textarea')?.dispatchEvent(event)
+  }, imageBase64)
+  await page.waitForSelector('.composer-attachment-list .attachment-image')
+  await page.locator('.composer-attachment-list .attachment-remove').click()
+
+  await page.locator('.composer-add').click()
+  await page.waitForSelector('.attach-menu')
+  const attachOptions = await page.locator('.attach-menu-item').allTextContents()
+  assert.deepEqual(attachOptions.map((label) => label.trim()), ['图片', '文件'])
+  await page.waitForTimeout(220)
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-attach-menu.png') })
+  await page.keyboard.press('Escape')
+
+  await page
+    .locator('[data-attachment-input="image"]')
+    .setInputFiles(path.join(root, 'build', 'icon.png'))
+  await page.waitForFunction(
+    () => document.querySelectorAll('.composer-attachment-list .attachment-image').length === 1
+  )
+  await page.locator('[data-attachment-input="file"]').setInputFiles(attachmentFilePath)
+  await page.waitForFunction(
+    () => document.querySelectorAll('.composer-attachment-list .attachment-tile').length === 2
+  )
+  const assistantBeforeAttachments = await page.locator('.msg-assistant').count()
+  await page.locator('.composer textarea').fill('请查看这两个附件')
+  await page.locator('.composer textarea').press('Enter')
+  await page.waitForFunction(
+    (count) => document.querySelectorAll('.msg-assistant').length > count,
+    assistantBeforeAttachments,
+    { timeout: 30000 }
+  )
+  await page.waitForFunction(() => !document.querySelector('.composer-attachment-list'))
+  assert.equal(attachmentPayloadSeen, true, 'image and text attachment should reach the model')
+  const attachmentMessage = page.locator('.msg-user').last()
+  assert.equal(await attachmentMessage.locator('.attachment-image').count(), 1)
+  assert.equal(await attachmentMessage.locator('.attachment-file').count(), 1)
+  await page.waitForTimeout(350)
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-attachments.png') })
+  console.log('[e2e] attachments drag/paste/picker + send OK')
 
   const userMessage = page.locator('.msg-user').first()
   await page.mouse.move(1200, 840)

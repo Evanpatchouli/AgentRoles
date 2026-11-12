@@ -17,8 +17,8 @@ const api: AgentRolesApi = {
   toggleFullscreen: () => ipcRenderer.invoke('window:fullscreen'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   getWhatsNew: (force) => ipcRenderer.invoke('updates:whatsNew', force),
-  sendMessage: (sessionId, content) =>
-    ipcRenderer.invoke('messages:send', sessionId, content),
+  sendMessage: (sessionId, content, attachments) =>
+    ipcRenderer.invoke('messages:send', sessionId, content, attachments),
   processMessage: (sessionId, messageId) =>
     ipcRenderer.invoke('messages:process', sessionId, messageId),
   stopSession: (sessionId) => ipcRenderer.invoke('sessions:stop', sessionId),

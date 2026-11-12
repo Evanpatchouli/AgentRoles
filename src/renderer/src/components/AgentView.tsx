@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { Agent, ChatMessage, Session, SkillMeta, AppSettings } from '@shared/types'
+import type { Agent, ChatAttachment, ChatMessage, Session, SkillMeta, AppSettings } from '@shared/types'
 import { Icon } from './Icons'
 import { AvatarContent } from './Avatar'
 import { Spinner } from './Primitives'
@@ -50,7 +50,7 @@ export function AgentView({
   onDeleteAgent: (agent: Agent) => void
   onNewSession: () => void
   onUnarchive: () => void
-  onSend: (sessionId: string, content: string) => Promise<boolean>
+  onSend: (sessionId: string, content: string, attachments?: ChatAttachment[]) => Promise<boolean>
   onProcessMessage: (sessionId: string, messageId: string) => Promise<void>
   onStop: (sessionId: string) => Promise<void>
   notify: (kind: 'success' | 'error' | 'info', text: string) => void

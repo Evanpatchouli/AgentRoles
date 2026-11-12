@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type {
   AgentEvent,
   AgentRuntimeState,
+  ChatAttachment,
   ChatMessage,
   MessageState,
   SendResult,
@@ -18,6 +19,9 @@ import { streamChat, type LlmMessage } from './llm'
 const MAX_STEPS = 10
 const HISTORY_LIMIT = 40
 const TOOL_RESULT_LIMIT = 12000
+const MAX_ATTACHMENTS = 6
+const MAX_ATTACHMENT_TEXT = 250_000
+const MAX_ATTACHMENT_DATA = 32_000_000
 
 interface Runtime {
   running: boolean
@@ -61,6 +65,10 @@ function buildHistory(messages: ChatMessage[], triggerId: string): LlmMessage[] 
     for (let index = from; index < filtered.length; index += 1) {
       const message = filtered[index]
       size += message.content.length
+      for (const attachment of message.attachments ?? []) {
+        size += attachment.dataUrl?.length ?? 0
+        size += attachment.text?.length ?? 0
+      }
       for (const call of message.toolCalls ?? []) {
         size += String(call.result ?? '').length + 200
       }
@@ -79,7 +87,11 @@ function buildHistory(messages: ChatMessage[], triggerId: string): LlmMessage[] 
   const output: LlmMessage[] = []
   for (const message of window) {
     if (message.role === 'user') {
-      output.push({ role: 'user', content: userContentForLlm(message) })
+      output.push({
+        role: 'user',
+        content: userContentForLlm(message),
+        ...(message.attachments?.length ? { attachments: message.attachments } : {})
+      })
       continue
     }
     const completed = (message.toolCalls ?? []).filter((call) => call.result !== undefined)
@@ -100,6 +112,35 @@ function buildHistory(messages: ChatMessage[], triggerId: string): LlmMessage[] 
         content: truncate(String(call.result ?? ''), 8000)
       })
     }
+  }
+  return output
+}
+
+function normalizeAttachments(input: unknown): ChatAttachment[] {
+  if (!Array.isArray(input)) return []
+  const output: ChatAttachment[] = []
+  let dataSize = 0
+  for (const raw of input.slice(0, MAX_ATTACHMENTS)) {
+    if (!raw || typeof raw !== 'object') continue
+    const item = raw as Record<string, unknown>
+    const name = String(item.name || '').trim().slice(0, 200)
+    const kind = item.kind === 'image' ? 'image' : 'file'
+    const dataUrl = typeof item.dataUrl === 'string' ? item.dataUrl : ''
+    const text = typeof item.text === 'string' ? item.text.slice(0, MAX_ATTACHMENT_TEXT) : ''
+    if (!name || (!dataUrl && !text)) continue
+    if (dataUrl && !dataUrl.startsWith('data:')) continue
+    dataSize += dataUrl.length + text.length
+    if (dataSize > MAX_ATTACHMENT_DATA) break
+    output.push({
+      id: typeof item.id === 'string' && item.id ? item.id : randomUUID(),
+      kind,
+      name,
+      mime: String(item.mime || 'application/octet-stream').slice(0, 120),
+      size: Number(item.size) || 0,
+      ...(dataUrl ? { dataUrl } : {}),
+      ...(text ? { text } : {}),
+      ...(item.truncated ? { truncated: true } : {})
+    })
   }
   return output
 }
@@ -190,10 +231,11 @@ export class AgentManager {
     session: Session,
     content: string,
     source: string,
-    options: IngestOptions = {}
+    options: IngestOptions = {},
+    attachments: ChatAttachment[] = []
   ): ChatMessage {
     const text = content.trim()
-    if (!text) throw new Error('消息内容不能为空')
+    if (!text && attachments.length === 0) throw new Error('消息内容不能为空')
     if (text.length > 40000) throw new Error('消息过长（上限 40000 字符）')
     return {
       id: randomUUID(),
@@ -201,6 +243,7 @@ export class AgentManager {
       sessionId: session.id,
       role: 'user',
       content: text,
+      ...(attachments.length ? { attachments } : {}),
       state: 'pending',
       source,
       meta: {
@@ -213,7 +256,11 @@ export class AgentManager {
     }
   }
 
-  async sendFromApp(sessionId: string, content: string): Promise<SendResult> {
+  async sendFromApp(
+    sessionId: string,
+    content: string,
+    attachments: ChatAttachment[] = []
+  ): Promise<SendResult> {
     const session = this.store.getSession(sessionId)
     if (!session) return { ok: false, error: '会话不存在' }
     const agent = this.store.getAgent(session.agentId)
@@ -223,7 +270,13 @@ export class AgentManager {
     }
     let message: ChatMessage
     try {
-      message = this.createUserMessage(session, content, 'app')
+      message = this.createUserMessage(
+        session,
+        content,
+        'app',
+        {},
+        normalizeAttachments(attachments)
+      )
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }

@@ -6,6 +6,7 @@ import type {
   Agent,
   AppSettings,
   AppState,
+  ChatAttachment,
   IngressInfo,
   ModelListResult,
   ModelSettings,
@@ -236,9 +237,12 @@ export function registerIpc(deps: IpcDeps): void {
     return { ok: true }
   })
 
-  ipcMain.handle('messages:send', async (_event, sessionId: string, content: string) => {
-    return manager.sendFromApp(sessionId, content)
-  })
+  ipcMain.handle(
+    'messages:send',
+    async (_event, sessionId: string, content: string, attachments?: ChatAttachment[]) => {
+      return manager.sendFromApp(sessionId, content, attachments)
+    }
+  )
 
   ipcMain.handle('messages:process', async (_event, sessionId: string, messageId: string) => {
     return manager.processMessage(sessionId, messageId)

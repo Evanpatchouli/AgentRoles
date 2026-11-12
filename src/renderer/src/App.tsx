@@ -4,6 +4,7 @@ import type {
   AgentEvent,
   AppSettings,
   AppState,
+  ChatAttachment,
   ChatMessage,
   Session,
   ThemeMode,
@@ -472,8 +473,12 @@ export default function App() {
   )
 
   const sendMessage = useCallback(
-    async (sessionId: string, content: string): Promise<boolean> => {
-      const result = await window.api.sendMessage(sessionId, content)
+    async (
+      sessionId: string,
+      content: string,
+      attachments?: ChatAttachment[]
+    ): Promise<boolean> => {
+      const result = await window.api.sendMessage(sessionId, content, attachments)
       if (!result.ok) {
         notify('error', result.error ?? '发送失败')
         return false
