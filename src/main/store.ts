@@ -127,13 +127,34 @@ export class Store {
       ...base,
       ...(parsed.settings ?? {}),
       notion: { ...base.notion, ...(parsed.settings?.notion ?? {}) },
-      ingress: { ...base.ingress, ...(parsed.settings?.ingress ?? {}) }
+      ingress: { ...base.ingress, ...(parsed.settings?.ingress ?? {}) },
+      memory: {
+        ...base.memory,
+        ...(parsed.settings?.memory ?? {}),
+        embedding: {
+          ...base.memory.embedding,
+          ...(parsed.settings?.memory?.embedding ?? {})
+        }
+      }
     }
     settings.notion.token = unseal(settings.notion.token)
     settings.ingress.token =
       settings.ingress.token && !settings.ingress.token.startsWith('enc:')
         ? unseal(settings.ingress.token)
         : base.ingress.token
+    settings.memory.extractionEnabled = Boolean(settings.memory.extractionEnabled)
+    const confidence = Number(settings.memory.autoAcceptConfidence)
+    settings.memory.autoAcceptConfidence = Number.isFinite(confidence)
+      ? Math.min(1, Math.max(0, confidence))
+      : base.memory.autoAcceptConfidence
+    settings.memory.embedding.enabled = Boolean(settings.memory.embedding.enabled)
+    settings.memory.embedding.baseUrl =
+      String(settings.memory.embedding.baseUrl ?? '').trim() || base.memory.embedding.baseUrl
+    settings.memory.embedding.model =
+      String(settings.memory.embedding.model ?? '').trim() || base.memory.embedding.model
+    settings.memory.embedding.apiKey = unseal(
+      String(settings.memory.embedding.apiKey ?? '')
+    )
     if (!['system', 'light', 'dark'].includes(settings.theme)) settings.theme = 'system'
 
     const agents = (parsed.agents ?? []).map((agent) => {
@@ -417,9 +438,6 @@ export class Store {
     await fsp
       .rm(path.join(this.messagesDir, id + '.json'), { force: true })
       .catch(() => undefined)
-    await fsp
-      .rm(path.join(this.dataDir, 'memory', id + '.json'), { force: true })
-      .catch(() => undefined)
     await this.persistConfig()
     await this.persistSessions()
     this.emitChange()
@@ -455,6 +473,9 @@ export class Store {
     const snapshot = clone(this.config)
     snapshot.settings.notion.token = seal(snapshot.settings.notion.token)
     snapshot.settings.ingress.token = seal(snapshot.settings.ingress.token)
+    snapshot.settings.memory.embedding.apiKey = seal(
+      snapshot.settings.memory.embedding.apiKey
+    )
     for (const agent of snapshot.agents) {
       agent.model.apiKey = seal(agent.model.apiKey ?? '')
       if (agent.skills?.notion?.settings?.token) {

@@ -21,6 +21,110 @@ export interface SkillState {
   settings: Record<string, string>
 }
 
+export type MemoryScope = 'agent' | 'project' | 'session'
+
+export type MemoryKind = 'profile' | 'preference' | 'fact' | 'project' | 'task'
+
+/** 一条长期记忆。key 在单个角色内唯一，id 用于管理页与详情引用。 */
+export interface MemoryRecord {
+  id: string
+  agentId: string
+  scope: MemoryScope
+  kind: MemoryKind
+  key: string
+  content: string
+  tags: string[]
+  sourceSessionId?: string
+  sourceMessageId?: string
+  pinned?: boolean
+  /** 0-5，越高越优先出现在自动召回中 */
+  importance?: number
+  createdAt: number
+  updatedAt: number
+  lastUsedAt?: number
+  expiresAt?: number
+}
+
+export interface MemoryInput {
+  /** 传入时按 id 更新；否则按 key 新增或覆盖 */
+  id?: string
+  key: string
+  content: string
+  kind?: MemoryKind
+  scope?: MemoryScope
+  tags?: string[]
+  pinned?: boolean
+  importance?: number
+  expiresAt?: number | null
+  sourceSessionId?: string
+  sourceMessageId?: string
+}
+
+/** 自动提取出来、等待用户确认的记忆候选。确认后才进入正式记忆。 */
+export interface MemoryCandidate {
+  id: string
+  agentId: string
+  key: string
+  content: string
+  kind: MemoryKind
+  scope: MemoryScope
+  tags: string[]
+  /** 0-1，自动提取模型的置信度 */
+  confidence: number
+  reason?: string
+  /** 候选确认后会覆盖同 key 的现有记忆 */
+  supersedesKey?: string
+  sourceSessionId?: string
+  sourceMessageId?: string
+  createdAt: number
+}
+
+export interface MemoryCandidateInput {
+  key: string
+  content: string
+  kind?: MemoryKind
+  scope?: MemoryScope
+  tags?: string[]
+  confidence?: number
+  reason?: string
+}
+
+export interface MemoryIndexStatus {
+  /** node:sqlite 是否可用 */
+  available: boolean
+  /** FTS5 是否可用 */
+  fts: boolean
+  /** 是否启用了向量检索 */
+  enabled: boolean
+  /** 已建立向量的记录数 */
+  vectors: number
+  /** 当前向量模型 */
+  model: string
+  lastError?: string
+}
+
+export interface MemorySnapshot {
+  agentId: string
+  records: MemoryRecord[]
+  pending: MemoryCandidate[]
+  total: number
+  pendingCount: number
+  pinned: number
+  expired: number
+  /** 记录序列化后的近似字节数 */
+  bytes: number
+  limit: number
+  contentLimit: number
+  index: MemoryIndexStatus
+}
+
+export interface MemoryImportResult {
+  imported: number
+  updated: number
+  skipped: number
+  total: number
+}
+
 export interface Agent {
   id: string
   name: string
@@ -54,9 +158,26 @@ export interface IngressSettings {
   token: string
 }
 
+/** OpenAI 兼容的 /embeddings 配置；关闭时只使用 SQLite FTS5 关键词检索。 */
+export interface EmbeddingSettings {
+  enabled: boolean
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
+export interface MemorySettings {
+  /** 对话结束后让模型提取候选记忆 */
+  extractionEnabled: boolean
+  /** 高置信度偏好自动保存的门槛，0-1 */
+  autoAcceptConfidence: number
+  embedding: EmbeddingSettings
+}
+
 export interface AppSettings {
   notion: NotionSettings
   ingress: IngressSettings
+  memory: MemorySettings
   /** 技能可读写的本地工作目录 */
   workspaceDir: string
   /** 外观主题：跟随系统 / 浅色 / 深色 */
@@ -286,6 +407,17 @@ export type AgentEvent =
       runId: string
       error?: string
     }
+  | {
+      type: 'memory_updated'
+      agentId: string
+      pending: number
+      /** 本次新增的待确认候选数 */
+      added: number
+      /** 本次替换已有待确认候选的数量 */
+      updated: number
+      /** 本次按高置信度自动保存的数量 */
+      accepted: number
+    }
 
 export interface TestResult {
   ok: boolean
@@ -314,6 +446,20 @@ export interface AgentRolesApi {
   createAgent(): Promise<{ agent: Agent; session: Session }>
   saveAgent(agent: Agent): Promise<Agent>
   deleteAgent(id: string): Promise<{ ok: boolean }>
+  listMemories(agentId: string): Promise<MemorySnapshot>
+  saveMemory(agentId: string, input: MemoryInput): Promise<MemoryRecord>
+  deleteMemory(agentId: string, id: string): Promise<{ ok: boolean }>
+  confirmMemoryCandidate(agentId: string, id: string): Promise<MemoryRecord | null>
+  rejectMemoryCandidate(agentId: string, id: string): Promise<{ ok: boolean }>
+  reindexMemories(agentId: string): Promise<MemoryIndexStatus>
+  cleanupMemories(
+    agentId: string,
+    unusedDays: number
+  ): Promise<{ removed: number; total: number }>
+  exportMemories(
+    agentId: string
+  ): Promise<{ ok: boolean; canceled?: boolean; path?: string }>
+  importMemories(agentId: string): Promise<MemoryImportResult & { canceled?: boolean }>
   createSession(agentId: string): Promise<Session>
   updateSession(sessionId: string, patch: SessionPatch): Promise<Session>
   newWindow(): Promise<void>
@@ -335,6 +481,7 @@ export interface AgentRolesApi {
   testModel(model: ModelSettings): Promise<TestResult>
   listModels(model: ModelSettings): Promise<ModelListResult>
   testNotion(notion: NotionSettings): Promise<TestResult>
+  testEmbedding(embedding: EmbeddingSettings): Promise<TestResult>
   chooseWorkspace(): Promise<string | null>
   restartIngress(): Promise<IngressInfo>
   copyText(text: string): Promise<void>

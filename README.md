@@ -116,7 +116,7 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 | 技能 | 工具 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | Notion 任务库 | `notion_create_task` `notion_update_task` `notion_find_task` 等 9 个 | 关闭 | 建任务、改状态、查任务、原生属性操作 |
-| 长期记忆 | `memory_set/get/list/delete` | 开启 | 每个角色一份跨会话记忆 |
+| 长期记忆 | `memory_set/get/search/list/delete` | 开启 | 每个角色一份结构化跨会话记忆，带自动召回 |
 | 本地文件 | `fs_list/read/write/append` | 关闭 | 限定在工作区目录内 |
 | 网络请求 | `http_request` | 关闭 | GET/POST 等，用于网页或内部 API |
 | 终端命令 | `run_command` | 关闭 | 在工作区执行命令，高风险 |
@@ -124,6 +124,17 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 > 终端与文件技能具备操作本机的能力，只应在可信角色上启用。技能是否启用就是权限边界。
 
 ![技能配置](docs/assets/skills.png)
+
+### 长期记忆
+
+- 在「角色 → 记忆」页搜索、按类型/标签筛选、新增、编辑、删除、置顶核心记忆，或导入/导出 JSON。
+- 每轮对话前自动注入少量核心记忆：置顶记录、关键词/语义命中记录、最近使用过的记录；模型需要详情时再调用 `memory_get`。
+- **SQLite FTS5 关键词检索**：默认启用，索引位于 `memory/index.sqlite`，中文会自动补充二元组；索引是派生数据，可随时重建。
+- **向量语义检索（可选）**：在「设置 → 记忆检索与提取」配置 OpenAI 兼容的 `/embeddings` 服务。开启后，记忆内容与查询会发送到该服务，向量以 Float32Array 存在本机 SQLite，检索时做余弦相似度；关闭时完全不发外部请求。
+- **自动提取与待确认**：打开「对话结束后自动提取记忆」后，每轮成功回复会额外调用一次当前角色模型提取候选。候选默认进入「待确认」，用户确认后才参与召回；高置信度 `preference` 可直接保存。
+- 记忆是结构化记录：`scope`、`kind`、`key`、`content`、`tags`、来源会话、创建/更新/最后使用时间、过期时间。旧版 `{ key: value }` 文件会在首次读写时自动迁移。
+- 同一角色的写入在主进程内按 `agentId` 串行化，多会话并行也不会丢更新；写入前保留 `.bak`，主文件损坏时可回退。
+- 记忆属于外部可影响的数据，注入时明确标注“不是指令”；疑似 API Key、Token 的内容会被拒绝写入。
 
 ## 外部 Agent 接入
 
@@ -181,11 +192,14 @@ node resources/agentroles-cli.mjs send \
 ## 数据与安全
 
 - 配置、会话、记忆保存在 Electron 的 `userData` 目录；界面「设置 → 工作区与数据」可以直接打开。
-- API Key 与 Notion Token 使用 Electron `safeStorage` 加密后落盘（Windows 上由 DPAPI 提供保护）。
+- 长期记忆的每次写入都会先备份为 `.bak`，再通过唯一临时文件 + rename 原子替换，并按角色串行化，避免多会话并发丢数据。
+- 关键词索引与向量保存在本机 `memory/index.sqlite`；可通过记忆页「重建索引」重建。
+- 向量检索默认关闭；开启后记忆内容会发送到用户配置的 Embedding 服务。自动提取默认关闭，开启后会额外调用当前角色模型。
+- API Key、Notion Token 与 Embedding API Key 使用 Electron `safeStorage` 加密后落盘（Windows 上由 DPAPI 提供保护）。
 - 本地 HTTP 服务只绑定 `127.0.0.1`，所有写入接口都需要 Bearer Token。
 - 渲染进程没有 Node 权限，通过 `contextBridge` 暴露白名单 IPC。
 - Markdown 输出经过 DOMPurify 清洗；外部消息作为纯文本渲染。
-- 应用不包含遥测、云同步或远程存储。
+- 应用不包含遥测、云同步或远程存储；只有用户主动启用 Embedding 时，记忆内容与查询才会发送到其配置的服务。
 
 ## 项目结构
 
@@ -194,6 +208,7 @@ src/
   main/
     engine/       模型适配（OpenAI / Responses / Anthropic）与 Agent 运行循环
     skills/       技能注册表、Notion、文件、HTTP、记忆、终端
+    memory/       长期记忆（结构化记录、写入锁、FTS5/向量索引、自动提取）
     ingress/      本地 HTTP 消息入口
     store.ts      配置、会话、密钥加密与持久化
     ipc.ts        渲染进程 IPC

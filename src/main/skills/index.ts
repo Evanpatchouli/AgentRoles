@@ -1,5 +1,6 @@
 import type { Agent, AppSettings, SkillMeta, SkillState } from '@shared/types'
 import { defaultSkillState } from '../defaults'
+import type { MemoryStore } from '../memory/store'
 import type { SkillDefinition, ToolContext, ToolSpec } from './types'
 import { notionSkill } from './notion'
 import { memorySkill } from './memory'
@@ -39,31 +40,37 @@ export function skillMetas(): SkillMeta[] {
   }))
 }
 
-export function buildToolContext(
-  agent: Agent,
-  settings: AppSettings,
-  dataDir: string,
+export interface ToolBuildOptions {
+  agent: Agent
+  settings: AppSettings
+  dataDir: string
   signal: AbortSignal
-): ToolContext {
+  memory: MemoryStore
+  sessionId?: string
+  sourceMessageId?: string
+}
+
+export function buildToolContext(options: ToolBuildOptions): ToolContext {
   return {
-    agent,
-    settings,
-    dataDir,
-    workspaceDir: settings.workspaceDir,
-    signal
+    agent: options.agent,
+    settings: options.settings,
+    dataDir: options.dataDir,
+    workspaceDir: options.settings.workspaceDir,
+    signal: options.signal,
+    memory: options.memory,
+    sessionId: options.sessionId,
+    sourceMessageId: options.sourceMessageId
   }
 }
 
-export function buildToolsForAgent(
-  agent: Agent,
-  settings: AppSettings,
-  dataDir: string,
-  signal: AbortSignal
-): { tools: ToolSpec[]; context: ToolContext } {
-  const context = buildToolContext(agent, settings, dataDir, signal)
+export function buildToolsForAgent(options: ToolBuildOptions): {
+  tools: ToolSpec[]
+  context: ToolContext
+} {
+  const context = buildToolContext(options)
   const tools: ToolSpec[] = []
   for (const skill of SKILLS) {
-    if (!agent.skills[skill.id]?.enabled) continue
+    if (!options.agent.skills[skill.id]?.enabled) continue
     tools.push(...skill.tools)
   }
   return { tools, context }

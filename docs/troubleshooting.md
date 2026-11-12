@@ -76,6 +76,17 @@
 - 会话：`sessions.json`、`messages/<sessionId>.json`
 - 版本记录缓存：`releases-cache.json`
 - 长期记忆：`memory/<agentId>.json`
+- 长期记忆备份：`memory/<agentId>.json.bak`（主文件损坏时会自动回退；不要手动删除正在使用的备份）
+- 待确认记忆：`memory/<agentId>.pending.json`
+- 检索索引：`memory/index.sqlite`（FTS5 + 向量，派生数据）
+
+### 记忆检索异常
+
+- 如果记忆页显示「内存检索」而不是「FTS5」：说明 `node:sqlite` 或 FTS5 不可用，应用会退回内存检索，记忆本身不会丢失。
+- 如果搜索或召回结果异常：在「角色 → 记忆」点击「重建索引」。索引可以从 JSON 记忆完整重建。
+- 如果向量显示「降级」：检查「设置 → 记忆检索与提取」里的 Base URL、模型名和 API Key；Embedding 失败时关键词检索仍可用。
+- 自动提取会在每轮回复后额外调用一次模型。如果不想承担额外费用，在设置里关闭「对话结束后自动提取记忆」。
+- 旧版记忆文件不需要手动迁移；第一次写入时会自动转换为版本 2 结构。
 
 不要在 Issue 中粘贴真实 Token、API Key、Notion Token 或包含隐私的会话内容。
 

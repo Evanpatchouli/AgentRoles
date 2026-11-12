@@ -105,6 +105,7 @@ sequenceDiagram
 - 运行中收到新消息：同一会话串行排队；不同会话、不同角色可以并行。
 - 每条会话拥有独立的运行队列、上下文窗口与运行状态；「新会话」只新建线程，不清空历史。
 - 会话支持右键重命名、置顶与归档；归档会话保留历史，但不再出现在外部接入的会话列表中。
+- 每轮运行开始前按当前用户消息自动召回最多 8 条长期记忆（置顶、FTS5 关键词命中、向量语义命中、最近使用），以摘要 + `memory:id` 的形式注入 system prompt，并标注为“数据而非指令”。模型需要完整内容时再调用 `memory_get`。
 - 停止：中止当前会话请求，触发消息回到 pending，可重试。
 
 ## 4. 模型适配
@@ -140,7 +141,7 @@ interface SkillDefinition {
 当前技能：
 
 - Notion：9 个任务/页面工具
-- 记忆：按角色隔离的 JSON 文件
+- 记忆：按角色隔离的结构化记录（`MemoryStore`），支持搜索、分页、置顶、过期与自动召回
 - 文件：工作区内的读写
 - HTTP：带超时的通用请求
 - 终端：工作区内执行命令，高风险
@@ -154,17 +155,50 @@ interface SkillDefinition {
   config.json                  角色、全局设置、加密后的密钥
   sessions.json                会话元数据（标题、更新时间）
   messages/<sessionId>.json    每个会话的消息记录
-  memory/<agentId>.json        长期记忆（按角色共享）
+  memory/<agentId>.json             长期记忆（版本 2：{ version, records[] }）
+  memory/<agentId>.json.bak         上一次写入前的备份
+  memory/<agentId>.pending.json     自动提取的待确认候选
+  memory/index.sqlite               FTS5 + 向量索引（派生数据，可重建）
 ~~~
 
 旧版本的 ~~~messages/<agentId>.json~~~ 会在首次启动时自动迁移为默认会话（会话 id = 角色 id）。
+旧版 `memory/<agentId>.json` 的 `{ key: value }` 结构会在读取时转换为结构化记录，并在下一次写入时落盘为版本 2。
 
-- 写入采用临时文件 + rename，避免半写。
+- 写入采用临时文件 + rename，避免半写。临时文件名包含进程号与随机后缀，允许并发写入互不覆盖。
+- 长期记忆的读改写统一走 `MemoryStore.update(agentId, mutator)`：同一角色在进程内串行，不同角色互不影响；读取不加锁，因为正式文件只通过 rename 原子替换。
+- 每次写入前把当前文件复制为 `.bak`；主文件解析失败时回退到 `.bak`，避免一次损坏丢掉全部记忆。
 - 会话写入做 350ms 防抖，运行结束时强制落盘。
-- API Key、Notion Token 使用 ~~~safeStorage~~~ 加密后写入 config.json；Windows 下由 DPAPI 保护。
+- API Key、Notion Token、Embedding API Key 使用 ~~~safeStorage~~~ 加密后写入 config.json；Windows 下由 DPAPI 保护。
 - 应用启动时把状态加载到内存，渲染进程通过 IPC 读取。
 - 外观主题（~~~system / light / dark~~~）保存在 settings 中；主进程同步 `nativeTheme.themeSource` 与 Windows 标题栏 overlay 配色，渲染进程根据设置或系统偏好切换 CSS 变量。
 - 测试可以用 ~~~AGENTROLES_USER_DATA~~~ 指定隔离的数据目录。
+
+### 记忆检索与提取
+
+长期记忆的 JSON 文件仍是唯一事实来源；检索索引是派生数据，可以随时重建。
+
+**SQLite FTS5**
+
+- 使用 Electron 内置 Node 的 `node:sqlite`，不需要原生编译依赖。
+- `memory_fts` 使用 unicode61 分词；写入时把中文二元组合并进 `search_text`，避免整句被当作一个 token。
+- `memory_index_meta` 保存每个角色的内容签名（记录 id + updatedAt + 内容哈希）。签名不变时跳过重建。
+- FTS 查询按 BM25 排序，再转换为 0-1 的排名权重，与置顶、重要度、时间衰减一起排序。
+
+**向量检索（可选）**
+
+- 配置位于 `settings.memory.embedding`：启用开关、OpenAI 兼容 Base URL、API Key、模型名。默认关闭。
+- 向量以 Float32Array BLOB 存在 `memory_vectors`，写入前归一化；查询向量同样归一化后用点积得到余弦相似度。
+- `content_hash` 只反映 key/content/tags，向量有效性同时受模型名与 Base URL 影响；任一变化后旧向量自动失效并在后台重建。
+- 查询向量有 10 分钟、最多 64 条的本地缓存；Embedding 失败只记录错误，检索自动降级到 FTS。
+- 记忆 JSON 写入不等待向量生成，避免外部服务拖慢对话；FTS 索引在写入时同步更新。
+
+**自动提取与待确认**
+
+- 设置项 `settings.memory.extractionEnabled` 默认关闭；开启后每轮成功回复结束，用当前角色模型额外调用一次提取器。
+- 提取结果只包含 `key/content/kind/scope/tags/confidence/reason`，解析时拒绝疑似密钥。
+- `kind === 'preference'` 且 `confidence >= autoAcceptConfidence`（默认 0.85）时直接写入正式记忆；其余进入 `memory/<agentId>.pending.json`。
+- 待确认候选不参与检索和自动召回。用户确认时按 key 覆盖现有记忆或新增；忽略时只删除候选。
+- 候选文件与正式记忆共用同一个按角色串行化的写入锁，避免“确认”和“自动提取”并发覆盖。
 
 ## 7. 外部接入与并发
 

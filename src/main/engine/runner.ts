@@ -11,9 +11,11 @@ import type {
   ToolCall
 } from '@shared/types'
 import type { Store } from '../store'
+import type { MemoryStore } from '../memory/store'
+import { extractMemoryCandidates } from '../memory/extract'
 import { buildToolsForAgent } from '../skills'
 import { truncate } from '../skills/types'
-import { buildSystemPrompt, userContentForLlm } from './prompt'
+import { buildMemoryContext, buildSystemPrompt, userContentForLlm } from './prompt'
 import { streamChat, type LlmMessage } from './llm'
 
 const MAX_STEPS = 10
@@ -159,9 +161,11 @@ function parseArgs(raw: string): Record<string, unknown> | null {
 
 export class AgentManager {
   private runtimes = new Map<string, Runtime>()
+  private extracting = new Set<string>()
 
   constructor(
     private readonly store: Store,
+    private readonly memory: MemoryStore,
     private readonly emit: (event: AgentEvent) => void
   ) {}
 
@@ -396,12 +400,30 @@ export class AgentManager {
 
     this.emit({ type: 'run_start', agentId: session.agentId, sessionId, runId })
     this.setMessageState(sessionId, triggerId, 'running')
-    const { tools, context } = buildToolsForAgent(
+
+    let memoryContext = ''
+    if (agent.skills.memory?.enabled) {
+      try {
+        const recalled = await this.memory.recall(
+          agent.id,
+          userContentForLlm(trigger),
+          8
+        )
+        memoryContext = buildMemoryContext(recalled, true)
+      } catch (error) {
+        console.error('[memory] 自动召回失败', error)
+      }
+    }
+
+    const { tools, context } = buildToolsForAgent({
       agent,
       settings,
-      this.store.dataDir,
-      signal
-    )
+      dataDir: this.store.dataDir,
+      signal,
+      memory: this.memory,
+      sessionId,
+      sourceMessageId: triggerId
+    })
     let current: ChatMessage | null = null
     let finished = false
 
@@ -431,7 +453,7 @@ export class AgentManager {
 
         const result = await streamChat({
           model: agent.model,
-          system: buildSystemPrompt(agent, settings),
+          system: buildSystemPrompt(agent, settings, memoryContext),
           messages: history,
           tools: tools.map((tool) => ({
             name: tool.name,
@@ -555,6 +577,7 @@ export class AgentManager {
 
       this.setMessageState(sessionId, triggerId, 'done')
       this.emit({ type: 'run_end', agentId: session.agentId, sessionId, runId })
+      this.scheduleExtraction(sessionId, triggerId, agent, settings)
     } catch (error) {
       const aborted = signal.aborted || isAbort(error)
       const messageText = aborted
@@ -585,6 +608,82 @@ export class AgentManager {
       })
     } finally {
       void this.store.persistMessages(sessionId)
+    }
+  }
+
+  private scheduleExtraction(
+    sessionId: string,
+    triggerId: string,
+    agent: ReturnType<Store['getAgent']>,
+    settings: ReturnType<Store['getSettings']>
+  ): void {
+    if (!agent) return
+    if (!settings.memory.extractionEnabled) return
+    if (!agent.skills.memory?.enabled) return
+    const key = sessionId + ':' + triggerId
+    if (this.extracting.has(key)) return
+    this.extracting.add(key)
+    void this.extractMemories(sessionId, triggerId, agent, settings).finally(() => {
+      this.extracting.delete(key)
+    })
+  }
+
+  private buildExtractionTranscript(sessionId: string, triggerId: string): string {
+    const messages = this.store.getMessages(sessionId)
+    const start = messages.findIndex((message) => message.id === triggerId)
+    const window = start >= 0 ? messages.slice(start) : messages
+    const lines: string[] = []
+    for (const message of window) {
+      if (message.role === 'user') {
+        lines.push('用户：' + userContentForLlm(message))
+      } else if (
+        message.role === 'assistant' &&
+        message.content &&
+        message.state === 'done'
+      ) {
+        lines.push('助手：' + message.content)
+      }
+    }
+    return lines.join('\n\n').slice(-14000)
+  }
+
+  private async extractMemories(
+    sessionId: string,
+    triggerId: string,
+    agent: NonNullable<ReturnType<Store['getAgent']>>,
+    settings: ReturnType<Store['getSettings']>
+  ): Promise<void> {
+    const transcript = this.buildExtractionTranscript(sessionId, triggerId)
+    if (transcript.trim().length < 24) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 45000)
+    try {
+      const candidates = await extractMemoryCandidates({
+        model: agent.model,
+        transcript,
+        signal: controller.signal
+      })
+      if (candidates.length === 0) return
+      if (!this.store.getAgent(agent.id)) return
+      const result = await this.memory.addCandidates(agent.id, candidates, {
+        autoAcceptConfidence: settings.memory.autoAcceptConfidence,
+        sourceSessionId: sessionId,
+        sourceMessageId: triggerId
+      })
+      if (result.added > 0 || result.updated > 0 || result.accepted > 0) {
+        this.emit({
+          type: 'memory_updated',
+          agentId: agent.id,
+          pending: result.pending,
+          added: result.added,
+          updated: result.updated,
+          accepted: result.accepted
+        })
+      }
+    } catch (error) {
+      console.error('[memory] 自动提取失败', error)
+    } finally {
+      clearTimeout(timer)
     }
   }
 

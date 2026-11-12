@@ -76,6 +76,16 @@ export function defaultSettings(workspaceDir: string): AppSettings {
       port: 43110,
       token: randomBytes(16).toString('hex')
     },
+    memory: {
+      extractionEnabled: false,
+      autoAcceptConfidence: 0.85,
+      embedding: {
+        enabled: false,
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: '',
+        model: 'text-embedding-3-small'
+      }
+    },
     workspaceDir,
     theme: 'system'
   }

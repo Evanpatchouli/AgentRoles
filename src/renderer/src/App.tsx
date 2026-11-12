@@ -24,7 +24,7 @@ import { AboutDialog } from './components/AboutDialog'
 import { UpdateDialog } from './components/UpdateDialog'
 import { WhatsNewDialog } from './components/WhatsNewDialog'
 
-type Tab = 'chat' | 'skills' | 'role' | 'model'
+type Tab = 'chat' | 'skills' | 'memory' | 'role' | 'model'
 
 interface Toast {
   id: string
@@ -47,7 +47,9 @@ function readInitialView(): MainView {
 
 function readInitialTab(): Tab {
   const value = new URLSearchParams(window.location.search).get('tab')
-  return value === 'skills' || value === 'role' || value === 'model' ? value : 'chat'
+  return value === 'skills' || value === 'memory' || value === 'role' || value === 'model'
+    ? value
+    : 'chat'
 }
 
 function sortMessages(list: ChatMessage[]): ChatMessage[] {
@@ -280,6 +282,22 @@ export default function App() {
         return
       }
 
+      if (event.type === 'memory_updated') {
+        if (event.added > 0) {
+          notify(
+            'info',
+            '已提取 ' +
+              event.added +
+              ' 条待确认记忆' +
+              (event.accepted > 0 ? '，并自动保存 ' + event.accepted + ' 条偏好' : '') +
+              '，可在「记忆」页确认'
+          )
+        } else if (event.accepted > 0) {
+          notify('success', '已自动保存 ' + event.accepted + ' 条高置信度偏好')
+        }
+        return
+      }
+
       if (event.type === 'run_end') {
         scheduleInbox()
         return
@@ -360,7 +378,7 @@ export default function App() {
       unsubscribe()
       if (inboxTimer.current !== null) window.clearTimeout(inboxTimer.current)
     }
-  }, [scheduleInbox])
+  }, [notify, scheduleInbox])
 
   const activeSession =
     state?.sessions.find((session) => session.id === activeSessionId) ?? null

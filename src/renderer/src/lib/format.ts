@@ -61,6 +61,7 @@ export function prettyToolName(name: string): string {
     notion_get_page: '读取 Notion 页面',
     notion_search: '搜索 Notion',
     memory_set: '写入长期记忆',
+    memory_search: '搜索长期记忆',
     memory_get: '读取长期记忆',
     memory_list: '列出长期记忆',
     memory_delete: '删除长期记忆',

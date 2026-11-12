@@ -1,4 +1,5 @@
 import type { Agent, AppSettings, SkillField } from '@shared/types'
+import type { MemoryStore } from '../memory/store'
 
 export interface ToolContext {
   agent: Agent
@@ -6,6 +7,12 @@ export interface ToolContext {
   dataDir: string
   workspaceDir: string
   signal: AbortSignal
+  /** 共享的长期记忆存储，所有写入都在其中按角色串行化 */
+  memory: MemoryStore
+  /** 当前会话，用于记录记忆来源 */
+  sessionId?: string
+  /** 触发本轮运行的用户消息，用于记录记忆来源 */
+  sourceMessageId?: string
 }
 
 export interface ToolSpec {

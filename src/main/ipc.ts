@@ -7,7 +7,9 @@ import type {
   AppSettings,
   AppState,
   ChatAttachment,
+  EmbeddingSettings,
   IngressInfo,
+  MemoryInput,
   ModelListResult,
   ModelSettings,
   NotionSettings,
@@ -17,14 +19,17 @@ import type {
   ThemeMode
 } from '@shared/types'
 import type { Store } from './store'
+import type { MemoryStore } from './memory/store'
 import type { AgentManager } from './engine/runner'
 import type { IngressServer } from './ingress/server'
 import { streamChat } from './engine/llm'
+import { embedTexts } from './memory/embedding'
 import { listModelsForProvider } from './engine/models'
 import { checkForUpdates, getWhatsNew } from './update'
 
 interface IpcDeps {
   store: Store
+  memory: MemoryStore
   manager: AgentManager
   ingress: IngressServer
   restartIngress: () => Promise<IngressInfo>
@@ -154,7 +159,7 @@ function runtimePaths(): RuntimePaths {
 }
 
 export function registerIpc(deps: IpcDeps): void {
-  const { store, manager, ingress } = deps
+  const { store, memory, manager, ingress } = deps
 
   ipcMain.handle('app:state', () => deps.getState())
 
@@ -233,8 +238,98 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('agents:delete', async (_event, agentId: string) => {
     await manager.stopAgent(agentId)
     manager.forgetAgent(agentId)
+    await memory.removeAgent(agentId)
     await store.deleteAgent(agentId)
     return { ok: true }
+  })
+
+  ipcMain.handle('memory:list', async (_event, agentId: string) => {
+    if (!store.getAgent(agentId)) throw new Error('角色不存在')
+    return memory.snapshot(agentId)
+  })
+
+  ipcMain.handle(
+    'memory:save',
+    async (_event, agentId: string, input: MemoryInput) => {
+      if (!store.getAgent(agentId)) throw new Error('角色不存在')
+      if (!input || typeof input !== 'object') throw new Error('缺少记忆内容')
+      return memory.upsert(agentId, input)
+    }
+  )
+
+  ipcMain.handle('memory:delete', async (_event, agentId: string, id: string) => {
+    if (!store.getAgent(agentId)) throw new Error('角色不存在')
+    return { ok: await memory.remove(agentId, String(id ?? '')) }
+  })
+
+  ipcMain.handle(
+    'memory:confirm',
+    async (_event, agentId: string, id: string) => {
+      if (!store.getAgent(agentId)) throw new Error('角色不存在')
+      return memory.confirmCandidate(agentId, String(id ?? ''))
+    }
+  )
+
+  ipcMain.handle(
+    'memory:reject',
+    async (_event, agentId: string, id: string) => {
+      if (!store.getAgent(agentId)) throw new Error('角色不存在')
+      return { ok: await memory.rejectCandidate(agentId, String(id ?? '')) }
+    }
+  )
+
+  ipcMain.handle('memory:reindex', async (_event, agentId: string) => {
+    if (!store.getAgent(agentId)) throw new Error('角色不存在')
+    return memory.reindex(agentId)
+  })
+
+  ipcMain.handle(
+    'memory:cleanup',
+    async (_event, agentId: string, unusedDays: number) => {
+      if (!store.getAgent(agentId)) throw new Error('角色不存在')
+      return memory.cleanup(agentId, Number(unusedDays) || 0)
+    }
+  )
+
+  ipcMain.handle('memory:export', async (event, agentId: string) => {
+    const agent = store.getAgent(agentId)
+    if (!agent) throw new Error('角色不存在')
+    const options = {
+      title: '导出角色长期记忆',
+      defaultPath: path.join(
+        app.getPath('documents'),
+        'agentroles-memory-' +
+          agent.name.replace(/[\\/:*?"<>|]/g, '-').slice(0, 40) +
+          '.json'
+      ),
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = win
+      ? await dialog.showSaveDialog(win, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true }
+    const payload = await memory.exportPayload(agentId)
+    await fs.writeFile(result.filePath, JSON.stringify(payload, null, 2), 'utf8')
+    return { ok: true, path: result.filePath }
+  })
+
+  ipcMain.handle('memory:import', async (event, agentId: string) => {
+    if (!store.getAgent(agentId)) throw new Error('角色不存在')
+    const options = {
+      title: '导入长期记忆（按 key 合并）',
+      properties: ['openFile' as const],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true, imported: 0, updated: 0, skipped: 0, total: 0 }
+    }
+    const raw = await fs.readFile(result.filePaths[0], 'utf8')
+    return memory.importJson(agentId, raw)
   })
 
   ipcMain.handle(
@@ -259,9 +354,11 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   ipcMain.handle('settings:save', async (_event, input: AppSettings) => {
+    const current = store.getSettings()
+    const confidence = Number(input.memory?.autoAcceptConfidence)
     const settings: AppSettings = {
       ...structuredClone(input),
-      workspaceDir: normalizeWorkspace(input.workspaceDir || store.getSettings().workspaceDir),
+      workspaceDir: normalizeWorkspace(input.workspaceDir || current.workspaceDir),
       notion: {
         token: (input.notion?.token ?? '').trim(),
         databaseId: (input.notion?.databaseId ?? '').trim()
@@ -270,6 +367,22 @@ export function registerIpc(deps: IpcDeps): void {
         enabled: Boolean(input.ingress?.enabled),
         port: Math.min(65535, Math.max(1024, Number(input.ingress?.port) || 43110)),
         token: (input.ingress?.token ?? '').trim() || randomBytes(16).toString('hex')
+      },
+      memory: {
+        extractionEnabled: Boolean(input.memory?.extractionEnabled),
+        autoAcceptConfidence: Number.isFinite(confidence)
+          ? Math.min(1, Math.max(0, confidence))
+          : current.memory.autoAcceptConfidence,
+        embedding: {
+          enabled: Boolean(input.memory?.embedding?.enabled),
+          baseUrl:
+            String(input.memory?.embedding?.baseUrl ?? '').trim() ||
+            current.memory.embedding.baseUrl,
+          apiKey: String(input.memory?.embedding?.apiKey ?? '').trim(),
+          model:
+            String(input.memory?.embedding?.model ?? '').trim() ||
+            current.memory.embedding.model
+        }
       },
       theme: ['system', 'light', 'dark'].includes(input.theme) ? input.theme : 'system'
     }
@@ -316,6 +429,31 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('notion:test', async (_event, notion: NotionSettings) => {
     return testNotion(notion)
   })
+
+  ipcMain.handle(
+    'embedding:test',
+    async (_event, embedding: EmbeddingSettings) => {
+      const started = Date.now()
+      try {
+        const result = await embedTexts(
+          { ...embedding, enabled: true },
+          ['AgentRoles 记忆检索连接测试']
+        )
+        return {
+          ok: true,
+          message: '连接成功，向量维度 ' + result.dimensions,
+          detail: result.model,
+          latencyMs: Date.now() - started
+        }
+      } catch (error: any) {
+        return {
+          ok: false,
+          message: error?.message ?? String(error),
+          latencyMs: Date.now() - started
+        }
+      }
+    }
+  )
 
   ipcMain.handle('workspace:choose', async () => {
     const result = await dialog.showOpenDialog({

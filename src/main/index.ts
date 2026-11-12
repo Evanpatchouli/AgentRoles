@@ -12,6 +12,8 @@ import path from 'node:path'
 import type { AgentEvent, AppState, IngressInfo, ThemeMode } from '@shared/types'
 import { APP_RELEASE_DATE } from '@shared/types'
 import { Store } from './store'
+import { MemoryStore } from './memory/store'
+import { MemoryIndex } from './memory/index'
 import { AgentManager } from './engine/runner'
 import { IngressServer } from './ingress/server'
 import { registerIpc } from './ipc'
@@ -23,6 +25,8 @@ if (process.env.AGENTROLES_USER_DATA) {
 }
 
 let store: Store
+let memory: MemoryStore
+let memoryIndex: MemoryIndex | null = null
 let manager: AgentManager
 let ingress: IngressServer
 let mainWindow: BrowserWindow | null = null
@@ -227,7 +231,16 @@ async function bootstrap(): Promise<void> {
   await store.init()
   nativeTheme.themeSource = store.getSettings().theme
   nativeTheme.on('updated', applyWindowChrome)
-  manager = new AgentManager(store, broadcast)
+  memoryIndex = await MemoryIndex.open({
+    dataDir: store.dataDir,
+    getSettings: () => store.getSettings(),
+    logger: (message, error) => console.error(message, error ?? '')
+  })
+  memory = new MemoryStore(
+    store.dataDir,
+    memoryIndex ? { index: memoryIndex } : undefined
+  )
+  manager = new AgentManager(store, memory, broadcast)
   ingress = new IngressServer({
     version: app.getVersion(),
     listAgents: () =>
@@ -274,6 +287,7 @@ async function bootstrap(): Promise<void> {
   await restartIngress()
   registerIpc({
     store,
+    memory,
     manager,
     ingress,
     restartIngress,
@@ -316,5 +330,6 @@ if (!gotLock) {
     manager?.shutdown()
     void ingress?.stop()
     void store?.flush()
+    memoryIndex?.close()
   })
 }

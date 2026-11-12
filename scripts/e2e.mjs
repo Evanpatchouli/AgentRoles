@@ -14,6 +14,8 @@ const attachmentFilePath = path.join(userData, 'attachment.txt')
 fs.writeFileSync(attachmentFilePath, '这是通过聊天附件上传的文本文件。\n第二行内容。', 'utf8')
 const ingressPort = 43177
 let attachmentPayloadSeen = false
+let memoryInjected = false
+let extractionCalls = 0
 
 function writeConfig(modelPort) {
   const now = Date.now()
@@ -47,6 +49,16 @@ function writeConfig(modelPort) {
     settings: {
       notion: { token: '', databaseId: '' },
       ingress: { enabled: true, port: ingressPort, token: 'test-token' },
+      memory: {
+        extractionEnabled: true,
+        autoAcceptConfidence: 0.9,
+        embedding: {
+          enabled: false,
+          baseUrl: 'http://127.0.0.1:' + modelPort + '/v1',
+          apiKey: '',
+          model: 'mock-embed'
+        }
+      },
       workspaceDir: workspace
     }
   }
@@ -129,6 +141,52 @@ const modelServer = http.createServer((request, response) => {
       serializedMessages.includes('这是通过聊天附件上传的文本文件')
     ) {
       attachmentPayloadSeen = true
+    }
+    const systemMessage = messages.find((message) => message.role === 'system')
+    const systemText = String(systemMessage?.content || '')
+    if (
+      systemMessage &&
+      systemText.includes('长期记忆摘要') &&
+      systemText.includes('project')
+    ) {
+      memoryInjected = true
+    }
+    if (systemText.includes('长期记忆提取器')) {
+      extractionCalls += 1
+      response.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive'
+      })
+      const sendExtraction = (data) => {
+        response.write('data: ' + JSON.stringify(data) + '\n\n')
+      }
+      sendExtraction({ choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] })
+      sendExtraction({
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: JSON.stringify([
+                {
+                  key: 'e2e_pref',
+                  content: 'E2E 偏好：回复先结论，再风险',
+                  kind: 'preference',
+                  scope: 'agent',
+                  tags: ['e2e'],
+                  confidence: 0.6,
+                  reason: '测试待确认流程'
+                }
+              ])
+            },
+            finish_reason: null
+          }
+        ]
+      })
+      sendExtraction({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })
+      response.write('data: [DONE]\n\n')
+      response.end()
+      return
     }
     const hasToolResult = messages.some((message) => message.role === 'tool')
     response.writeHead(200, {
@@ -311,8 +369,56 @@ try {
   const memoryFile = path.join(userData, 'memory', 'agent-test.json')
   assert.ok(fs.existsSync(memoryFile), 'memory file should exist')
   const memory = JSON.parse(fs.readFileSync(memoryFile, 'utf8'))
-  assert.equal(memory.project, 'AgentRoles')
-  console.log('[e2e] memory skill executed')
+  assert.equal(memory.version, 2)
+  const projectMemory = memory.records.find((item) => item.key === 'project')
+  assert.ok(projectMemory, 'project memory record should exist')
+  assert.equal(projectMemory.content, 'AgentRoles')
+  assert.ok(projectMemory.id.startsWith('mem_'))
+  assert.ok(
+    fs.existsSync(path.join(userData, 'memory', 'index.sqlite')),
+    'SQLite FTS5 index should be created'
+  )
+  assert.equal(memoryInjected, true, 'next turn should inject recalled memory into system prompt')
+  console.log('[e2e] memory skill executed with structured record')
+
+  // 等待两轮对话的自动提取完成，避免与管理页操作竞态
+  const extractionDeadline = Date.now() + 15000
+  while (extractionCalls < 2 && Date.now() < extractionDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  assert.ok(extractionCalls >= 2, 'both runs should trigger memory extraction')
+
+  // 记忆管理页：待确认候选、确认、切换核心记忆
+  await page.locator('.tab').filter({ hasText: '记忆' }).click()
+  await page.waitForSelector('.memory-card', { timeout: 10000 })
+  let memoryPanelText = await page.locator('.memory-panel').innerText()
+  assert.ok(memoryPanelText.includes('project'))
+  assert.ok(memoryPanelText.includes('AgentRoles'))
+  assert.ok(memoryPanelText.includes('1 / 200'))
+  await page.waitForSelector('.memory-pending', { timeout: 10000 })
+  const pendingText = await page.locator('.memory-pending').innerText()
+  assert.ok(pendingText.includes('待确认记忆'))
+  assert.ok(pendingText.includes('e2e_pref'))
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-memory-pending.png') })
+  await page.locator('.memory-candidate-actions .btn-primary').first().click()
+  await page.waitForFunction(() => !document.querySelector('.memory-pending'))
+  await page.waitForFunction(() => document.querySelectorAll('.memory-card').length === 2)
+  memoryPanelText = await page.locator('.memory-panel').innerText()
+  assert.ok(memoryPanelText.includes('2 / 200'))
+  assert.ok(memoryPanelText.includes('e2e_pref'))
+  await page.locator('.memory-card-actions .icon-btn').first().click()
+  await page.waitForFunction(() =>
+    Boolean(document.querySelector('.memory-card.is-pinned'))
+  )
+  await page.waitForTimeout(250)
+  await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-memory.png') })
+  await page.locator('.memory-card-actions .icon-btn').first().click()
+  await page.waitForFunction(() =>
+    Boolean(document.querySelector('.memory-card') && !document.querySelector('.memory-card.is-pinned'))
+  )
+  await page.locator('.tab').filter({ hasText: '会话' }).click()
+  await page.waitForSelector('.composer textarea')
+  console.log('[e2e] memory management + pending confirmation OK')
 
   // 外部 Agent 投递：走真实 HTTP 入口
   const response = await fetch('http://127.0.0.1:' + ingressPort + '/v1/agents/agent-test/messages', {
@@ -596,6 +702,25 @@ try {
   assert.ok(tipText.includes('随机程度'))
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-tooltip.png') })
   console.log('[e2e] temperature info tooltip OK')
+
+  // 设置页：记忆检索与提取配置渲染
+  await page.locator('.nav-item').filter({ hasText: '设置' }).click()
+  await page.waitForSelector('.settings-view')
+  const memorySettings = page
+    .locator('.settings-card')
+    .filter({ hasText: '记忆检索与提取' })
+  await memorySettings.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(250)
+  const memorySettingsText = await memorySettings.innerText()
+  assert.ok(memorySettingsText.includes('SQLite FTS5'))
+  assert.ok(memorySettingsText.includes('Embedding'))
+  assert.ok(memorySettingsText.includes('对话结束后自动提取记忆'))
+  await page.screenshot({
+    path: path.join(root, 'screenshots', 'e2e-settings-memory.png')
+  })
+  await page.locator('.nav-item').filter({ hasText: '工作台' }).click()
+  await page.waitForSelector('.agent-view')
+  console.log('[e2e] memory settings section OK')
 
   // 角色头像上传：选择本地图片 -> 压缩 -> 保存 -> 侧栏/标题区生效
   await page.locator('.tab').filter({ hasText: '角色' }).click()

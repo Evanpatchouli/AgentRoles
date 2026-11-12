@@ -15,7 +15,7 @@ AgentRoles 是一个本地优先的多角色 Agent 桌面工作台。本目录�
 
 ## 运行与发布
 
-- [架构说明](architecture.md)：数据模型、运行流程、存储、窗口与更新
+- [架构说明](architecture.md)：数据模型、运行流程、存储、窗口与更新；含[记忆检索与提取](architecture.md#记忆检索与提取)
 - [发布与检查更新](release-and-update.md)：版本号、GitHub Release、新功能记录与更新检查
 - [故障排查](troubleshooting.md)：MCP、模型、Notion、更新与窗口问题
 

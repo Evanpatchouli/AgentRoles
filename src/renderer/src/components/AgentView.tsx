@@ -8,12 +8,14 @@ import { ChatPanel } from './ChatPanel'
 import { RolePanel } from './RolePanel'
 import { ModelPanel } from './ModelPanel'
 import { SkillsPanel } from './SkillsPanel'
+import { MemoryPanel } from './MemoryPanel'
 
-export type AgentTab = 'chat' | 'skills' | 'role' | 'model'
+export type AgentTab = 'chat' | 'skills' | 'memory' | 'role' | 'model'
 
 const TABS: Array<{ id: AgentTab; label: string; icon: string }> = [
   { id: 'chat', label: '会话', icon: 'message' },
   { id: 'skills', label: '技能', icon: 'sparkle' },
+  { id: 'memory', label: '记忆', icon: 'memory' },
   { id: 'role', label: '角色', icon: 'users' },
   { id: 'model', label: '模型', icon: 'sliders' }
 ]
@@ -178,6 +180,8 @@ export function AgentView({
             notify={notify}
           />
         ) : null}
+
+        {tab === 'memory' ? <MemoryPanel agent={agent} notify={notify} /> : null}
       </div>
     </div>
   )

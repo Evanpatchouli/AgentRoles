@@ -8,6 +8,18 @@ const api: AgentRolesApi = {
   createAgent: () => ipcRenderer.invoke('agents:create'),
   saveAgent: (agent) => ipcRenderer.invoke('agents:save', agent),
   deleteAgent: (id) => ipcRenderer.invoke('agents:delete', id),
+  listMemories: (agentId) => ipcRenderer.invoke('memory:list', agentId),
+  saveMemory: (agentId, input) => ipcRenderer.invoke('memory:save', agentId, input),
+  deleteMemory: (agentId, id) => ipcRenderer.invoke('memory:delete', agentId, id),
+  confirmMemoryCandidate: (agentId, id) =>
+    ipcRenderer.invoke('memory:confirm', agentId, id),
+  rejectMemoryCandidate: (agentId, id) =>
+    ipcRenderer.invoke('memory:reject', agentId, id),
+  reindexMemories: (agentId) => ipcRenderer.invoke('memory:reindex', agentId),
+  cleanupMemories: (agentId, unusedDays) =>
+    ipcRenderer.invoke('memory:cleanup', agentId, unusedDays),
+  exportMemories: (agentId) => ipcRenderer.invoke('memory:export', agentId),
+  importMemories: (agentId) => ipcRenderer.invoke('memory:import', agentId),
   createSession: (agentId) => ipcRenderer.invoke('sessions:create', agentId),
   updateSession: (sessionId, patch) =>
     ipcRenderer.invoke('sessions:update', sessionId, patch),
@@ -28,6 +40,7 @@ const api: AgentRolesApi = {
   testModel: (model) => ipcRenderer.invoke('model:test', model),
   listModels: (model) => ipcRenderer.invoke('model:list', model),
   testNotion: (notion) => ipcRenderer.invoke('notion:test', notion),
+  testEmbedding: (embedding) => ipcRenderer.invoke('embedding:test', embedding),
   chooseWorkspace: () => ipcRenderer.invoke('workspace:choose'),
   restartIngress: () => ipcRenderer.invoke('ingress:restart'),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),

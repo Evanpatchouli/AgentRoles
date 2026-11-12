@@ -104,6 +104,7 @@ process.env.AGENTROLES_NOTION_BASE = 'http://127.0.0.1:' + port + '/v1'
 
 const { createAgent, defaultSettings } = await import('../src/main/defaults')
 const { notionSkill } = await import('../src/main/skills/notion')
+const { MemoryStore } = await import('../src/main/memory/store')
 
 const agent = createAgent({ name: '测试', role: '测试' }, ['notion', 'memory'])
 agent.skills.notion = { enabled: true, settings: {} }
@@ -114,7 +115,8 @@ const context = {
   settings,
   dataDir: 'C:\\temp\\agentroles-test',
   workspaceDir: 'C:\\temp\\agentroles-test',
-  signal: AbortSignal.timeout(8000)
+  signal: AbortSignal.timeout(8000),
+  memory: new MemoryStore('C:\\temp\\agentroles-test')
 }
 
 function tool(name: string) {
