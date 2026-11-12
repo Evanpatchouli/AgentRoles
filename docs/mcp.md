@@ -2,7 +2,7 @@
 
 本文说明 Codex、Claude Code、DSH 等 MCP 客户端接入 AgentRoles 后的能力边界、配置方式与常见问题。
 
-- 适用版本：AgentRoles v0.1.0
+- 适用版本：AgentRoles v0.1.1
 - 最后验证：2026-11-09
 - 相关文档：[接入总览](integrations.md) · [多人使用与安全](multi-user.md) · [架构说明](architecture.md)
 

@@ -2,8 +2,8 @@
 
 本文说明 AgentRoles 的版本发布、GitHub Release、检查更新和新功能记录机制。
 
-- 适用版本：AgentRoles v0.1.0
-- 最后验证：2026-11-09
+- 适用版本：AgentRoles v0.1.1
+- 最后验证：2026-11-13
 - 相关文档：[文档索引](README.md) · [MCP 接入](mcp.md) · [故障排查](troubleshooting.md)
 
 ## 1. 版本号与发布日期
@@ -14,7 +14,7 @@
 
 ~~~json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "releaseDate": "2026-11-13"
 }
 ~~~

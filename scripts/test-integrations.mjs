@@ -11,7 +11,7 @@ const server = http.createServer((request, response) => {
     response.end(JSON.stringify(body))
   }
   if (request.url === '/health') {
-    send(200, { ok: true, app: 'AgentRoles', version: '0.1.0', agents: 1 })
+    send(200, { ok: true, app: 'AgentRoles', version: '0.1.1', agents: 1 })
     return
   }
   if (token !== 'test-token') {

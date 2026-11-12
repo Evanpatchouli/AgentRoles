@@ -2,7 +2,7 @@
 
 本文说明多人、多个 Codex、远程访问场景下，AgentRoles 当前能做什么、不能做什么，以及推荐的隔离方式。
 
-- 适用版本：AgentRoles v0.1.0
+- 适用版本：AgentRoles v0.1.1
 - 最后验证：2026-11-09
 - 相关文档：[MCP 接入](mcp.md) · [HTTP / CLI 接入](integrations.md) · [架构说明](architecture.md)
 
