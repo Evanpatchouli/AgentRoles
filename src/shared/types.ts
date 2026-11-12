@@ -294,8 +294,22 @@ export interface SkillMeta {
   toolNames: string[]
 }
 
-// 发布新版本时同步更新这里的最新发布时间
-export const APP_RELEASE_DATE = '2026-11-07'
+declare const __APP_RELEASE_DATE__: string | undefined
+
+function fallbackReleaseDate(): string {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60000
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+}
+
+/**
+ * 构建时由 electron.vite.config.ts 从 package.json 的 releaseDate 注入。
+ * tsx / 单元测试等非 Vite 环境回退到当天日期。
+ */
+export const APP_RELEASE_DATE =
+  typeof __APP_RELEASE_DATE__ === 'string'
+    ? __APP_RELEASE_DATE__
+    : fallbackReleaseDate()
 export const APP_FEEDBACK_URL = 'https://github.com/Evanpatchouli/AgentRoles/issues'
 export const APP_DOCS_URL = 'https://github.com/Evanpatchouli/AgentRoles/tree/main/docs'
 export const APP_INTRO =

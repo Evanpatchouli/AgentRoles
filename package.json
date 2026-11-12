@@ -1,6 +1,7 @@
 {
   "name": "agentroles",
   "version": "0.1.0",
+  "releaseDate": "2026-11-13",
   "description": "为每个角色配备独立智能体：模型、角色设定与技能都可配置的桌面工作台",
   "main": "./out/main/index.js",
   "author": "AgentRoles",

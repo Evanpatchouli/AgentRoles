@@ -6,18 +6,22 @@
 - 最后验证：2026-11-09
 - 相关文档：[文档索引](README.md) · [MCP 接入](mcp.md) · [故障排查](troubleshooting.md)
 
-## 1. 版本号来源
+## 1. 版本号与发布日期
 
 当前版本来自 `package.json` 的 `version`，运行时通过 `app.getVersion()` 读取。
 
-关于弹窗中的「最新发布时间」来自共享常量：
+关于弹窗中的「最新发布时间」在构建时注入，来源是 `package.json`：
 
-~~~ts
-// src/shared/types.ts
-export const APP_RELEASE_DATE = '2026-11-07'
+~~~json
+{
+  "version": "0.1.0",
+  "releaseDate": "2026-11-13"
+}
 ~~~
 
-发布新版本时，需要同时更新 `package.json` 的版本和该日期。
+`electron.vite.config.ts` 读取 `releaseDate`，通过 Vite `define` 注入 `__APP_RELEASE_DATE__`，主进程与渲染进程使用同一个值。未配置或格式不是 `YYYY-MM-DD` 时回退到构建当天。
+
+发布新版本时，更新 `package.json` 的 `version` 和 `releaseDate` 后重新构建即可；不需要改源码常量。
 
 ## 2. GitHub Release 约定
 
@@ -120,8 +124,8 @@ npx electron-builder --win nsis -c.directories.output=release-build
 
 确认：
 
-- [ ] `package.json` 版本已更新
-- [ ] `APP_RELEASE_DATE` 已更新
+- [ ] `package.json` 的 `version` 已更新
+- [ ] `package.json` 的 `releaseDate` 已更新
 - [ ] GitHub Release tag 与版本一致
 - [ ] setup `.exe` 已上传
 - [ ] Release body 包含可读的更新说明
