@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "version": "0.1.2",
+      "name": "AgentRoles v0.1.2",
+      "publishedAt": "2026-11-16",
+      "body": "### 新功能\n\n- 支持导入自定义技能包：本地文件夹、GitHub 仓库（含子目录）与 ZIP 链接\n- 技能页新增自定义技能区域，支持来源信息、打开目录与删除\n- 每个角色可独立启用导入的技能，启用后技能说明注入系统提示词\n- 自动提供 skill_list / skill_read 只读工具，用于读取技能包内的参考文件\n\n### 改进\n\n- 同名技能重新导入会覆盖更新，并保留角色启用状态\n- 技能说明超过提示词上限时自动截断，并提示模型读取完整 SKILL.md\n- 新增《自定义技能》文档，补充格式、存储、安全与排查说明\n- 单元测试与 E2E 覆盖技能导入、读取、路径越界、启用与保存\n\n### 注意\n\n- 技能包内脚本不会自动执行，需要同时启用「终端命令」技能\n- 安装包未签名，Windows 可能提示未知发布者",
+      "htmlUrl": "https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.2",
+      "prerelease": false
+    },
+    {
       "version": "0.1.1",
       "name": "AgentRoles v0.1.1",
       "publishedAt": "2026-11-13",

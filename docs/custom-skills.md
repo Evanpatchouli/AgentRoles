@@ -2,7 +2,7 @@
 
 本文说明如何把外部技能包（SKILL.md）导入 AgentRoles，并按角色启用。
 
-- 适用版本：AgentRoles v0.1.1 及以后
+- 适用版本：AgentRoles v0.1.2 及以后
 - 最后验证：2026-11-16
 - 相关文档：[架构说明](architecture.md#5-技能系统) · [故障排查](troubleshooting.md) · [多人使用与安全](multi-user.md)
 

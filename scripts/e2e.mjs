@@ -105,10 +105,10 @@ const modelServer = http.createServer((request, response) => {
     response.end(
       JSON.stringify([
         {
-          tag_name: 'v0.1.2',
-          name: 'AgentRoles v0.1.2',
-          published_at: '2026-11-13T00:00:00Z',
-          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.2',
+          tag_name: 'v0.1.3',
+          name: 'AgentRoles v0.1.3',
+          published_at: '2026-11-16T00:00:00Z',
+          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.3',
           body: '### 新功能\n\n- 测试版本更新记录\n- 优化更新检查流程',
           draft: false,
           prerelease: false
@@ -130,16 +130,16 @@ const modelServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' })
     response.end(
       JSON.stringify({
-        tag_name: 'v0.1.2',
-        name: 'AgentRoles v0.1.2',
-        published_at: '2026-11-13T00:00:00Z',
-        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.2',
+        tag_name: 'v0.1.3',
+        name: 'AgentRoles v0.1.3',
+        published_at: '2026-11-16T00:00:00Z',
+        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.3',
         body: '测试更新说明：修复若干问题。',
         assets: [
           {
-            name: 'AgentRoles Setup 0.1.2.exe',
+            name: 'AgentRoles Setup 0.1.3.exe',
             browser_download_url:
-              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.2/AgentRoles-Setup-0.1.2.exe'
+              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.3/AgentRoles-Setup-0.1.3.exe'
           }
         ]
       })
@@ -936,7 +936,7 @@ try {
   await page.waitForTimeout(300)
   const whatsNewText = await page.locator('.whats-new-card').innerText()
   assert.ok(whatsNewText.includes('版本更新'))
-  assert.ok(whatsNewText.includes('v0.1.2'))
+  assert.ok(whatsNewText.includes('v0.1.3'))
   assert.ok(whatsNewText.includes('v0.1.0'))
   assert.ok(whatsNewText.includes('测试版本更新记录'))
   assert.ok(whatsNewText.includes('当前版本'))
@@ -961,8 +961,8 @@ try {
   await page.waitForTimeout(300)
   const updateText = await page.locator('.update-card').innerText()
   assert.ok(updateText.includes('发现新版本'))
+  assert.ok(updateText.includes('v0.1.3'))
   assert.ok(updateText.includes('v0.1.2'))
-  assert.ok(updateText.includes('v0.1.1'))
   assert.ok(updateText.includes('测试更新说明'))
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-update.png') })
   await page.locator('.update-actions .btn-ghost').click()

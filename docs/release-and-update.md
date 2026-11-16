@@ -2,8 +2,8 @@
 
 本文说明 AgentRoles 的版本发布、GitHub Release、检查更新和新功能记录机制。
 
-- 适用版本：AgentRoles v0.1.1
-- 最后验证：2026-11-13
+- 适用版本：AgentRoles v0.1.2
+- 最后验证：2026-11-16
 - 相关文档：[文档索引](README.md) · [MCP 接入](mcp.md) · [故障排查](troubleshooting.md)
 
 ## 1. 版本号与发布日期
@@ -14,8 +14,8 @@
 
 ~~~json
 {
-  "version": "0.1.1",
-  "releaseDate": "2026-11-13"
+  "version": "0.1.2",
+  "releaseDate": "2026-11-16"
 }
 ~~~
 
@@ -40,7 +40,7 @@ https://api.github.com/repos/Evanpatchouli/AgentRoles/releases?per_page=20
 发布时：
 
 1. 将 `package.json` 的 `version` 提升到新版本
-2. 创建对应 tag，例如 `v0.1.1`
+2. 创建对应 tag，例如 `v0.1.2`
 3. 创建 GitHub Release（不要只创建 tag）
 4. 上传 setup `.exe` 安装包
 5. 在 Release body 中写更新说明
@@ -137,7 +137,7 @@ npx electron-builder --win nsis -c.directories.output=release-build
 | 现象 | 检查 |
 | --- | --- |
 | 一直提示暂无 Release | 是否创建了 GitHub Release，而不是只有 tag |
-| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.1` |
+| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.2` |
 | 新功能显示内置说明 | Release 列表为空、离线或接口失败；可点刷新 |
 | 更新下载打开的是 Release 页面 | Release 没有 setup `.exe` 资产 |
 | 未读圆点不消失 | 打开新功能后是否成功加载；检查 localStorage 是否被清理 |

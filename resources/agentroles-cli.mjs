@@ -10,7 +10,7 @@
  */
 import process from 'node:process'
 
-const VERSION = '0.1.1'
+const VERSION = '0.1.2'
 
 function parseArgs(argv) {
   const args = { _: [] }
