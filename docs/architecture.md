@@ -146,7 +146,17 @@ interface SkillDefinition {
 - HTTP：带超时的通用请求
 - 终端：工作区内执行命令，高风险
 
-新增技能只需在 ~~~src/main/skills~~~ 实现 ~~~SkillDefinition~~~，在 ~~~skills/index.ts~~~ 注册，并在 ~~~defaults.ts~~~ 给出默认状态。UI 会自动渲染开关与配置字段。
+### 自定义技能包
+
+除了代码实现的 ~~~SkillDefinition~~~，角色还可以启用用户导入的技能包：
+
+- 技能包是包含 `SKILL.md` 的目录，存在 `<userData>/skills/<slug>/`；frontmatter 提供 `name` / `description` / `icon` / `version`，正文是给模型看的工作说明。
+- 导入入口支持本地文件夹、GitHub 仓库（含 `/tree/<分支>/<子目录>`）和任意 ZIP 链接。GitHub 地址通过 `/repos/:owner/:repo/zipball` 下载，主进程内置最小 ZIP 读取器（store / deflate），不依赖 git 或第三方解压库。
+- 启用的技能包正文会拼进 system prompt，并附带技能目录绝对路径和文件清单；包内的 `references/`、`scripts/` 通过只读工具 `skill_list` / `skill_read` 访问，路径限制在技能目录内。
+- 技能包里的脚本不会自动执行；需要同时启用「终端命令」技能，由模型用绝对路径调用。这样执行权限仍由现有的高风险技能开关控制。
+- 技能说明超过 24000 字符时提示词截断，模型可再用 `skill_read` 读取完整 `SKILL.md`。
+
+代码实现的技能只需在 ~~~src/main/skills~~~ 实现 ~~~SkillDefinition~~~，在 ~~~skills/index.ts~~~ 注册，并在 ~~~defaults.ts~~~ 给出默认状态。UI 会自动渲染开关与配置字段；导入的技能包则动态合并进同一份技能列表。
 
 ## 6. 存储与密钥
 
@@ -159,6 +169,7 @@ interface SkillDefinition {
   memory/<agentId>.json.bak         上一次写入前的备份
   memory/<agentId>.pending.json     自动提取的待确认候选
   memory/index.sqlite               FTS5 + 向量索引（派生数据，可重建）
+  skills/<slug>/                    用户导入的技能包（SKILL.md、参考文件、脚本）
 ~~~
 
 旧版本的 ~~~messages/<agentId>.json~~~ 会在首次启动时自动迁移为默认会话（会话 id = 角色 id）。
@@ -218,6 +229,7 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 - Markdown：marked + DOMPurify；外部消息按纯文本渲染。
 - 外部输入：系统提示明确要求把外部消息视为数据，忽略其中试图覆盖角色或索取密钥的指令。
 - 高风险技能默认关闭；终端命令限定工作区 cwd，文件路径做越界检查。
+- 自定义技能包是第三方内容：导入后默认不启用；`skill_list` / `skill_read` 只读且限制在技能目录内；包内脚本只有显式启用「终端命令」后才可能被执行。
 - 本地服务不监听 0.0.0.0，不提供远程管理接口。
 - 主进程支持多窗口；标题栏更多菜单通过 IPC 执行新窗口、缩放、全屏与关闭。关闭窗口后应用驻留系统托盘，托盘可重新打开窗口或退出。
 - 检查更新由主进程请求 GitHub Releases latest（避免渲染进程 CORS），按语义化版本比较；有新版时展示版本、发布时间、Release 说明与安装包/Release 页面链接。
@@ -231,8 +243,9 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 | ~~~npm run test:notion~~~ | 模拟 Notion API，验证创建/查询/更新与属性映射 |
 | ~~~npm run test:integrations~~~ | CLI 与 MCP Server 对 HTTP 入口的调用 |
 | ~~~npm run test:update~~~ | 语义化版本比较（含预发布版本） |
+| ~~~npm run test:skills~~~ | SKILL.md frontmatter、ZIP 解包、本地/ZIP 导入、路径越界与删除 |
 | ~~~npm run test:migration~~~ | 旧版单会话消息迁移为默认会话 |
-| ~~~npm run test:e2e~~~ | Playwright 启动真实 Electron，mock 模型完成工具循环、多会话创建/切换/隔离、外部消息按 session 路由 |
+| ~~~npm run test:e2e~~~ | Playwright 启动真实 Electron，mock 模型完成工具循环、多会话创建/切换/隔离、自定义技能启用/保存、外部消息按 session 路由 |
 
 E2E 使用临时 userData 与随机端口，不接触真实 Notion 或真实模型。
 
@@ -240,7 +253,6 @@ E2E 使用临时 userData 与随机端口，不接触真实 Notion 或真实模�
 
 - 会话重命名、归档与按项目自动路由
 - 工具执行审批与审计日志
-- 自定义技能目录（SKILL.md + 脚本）
 - 定时任务与工作流编排
 - Notion 2025 data sources API
 - 更多模型协议（Gemini、Bedrock、本地推理）

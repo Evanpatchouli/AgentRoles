@@ -18,6 +18,7 @@ import { AgentManager } from './engine/runner'
 import { IngressServer } from './ingress/server'
 import { registerIpc } from './ipc'
 import { defaultSkillStates, skillMetas } from './skills'
+import { CustomSkillLibrary } from './skills/custom'
 
 if (process.env.AGENTROLES_USER_DATA) {
   // 便于自动化测试与多实例隔离：把配置/会话放到指定目录
@@ -27,6 +28,7 @@ if (process.env.AGENTROLES_USER_DATA) {
 let store: Store
 let memory: MemoryStore
 let memoryIndex: MemoryIndex | null = null
+let customSkills: CustomSkillLibrary
 let manager: AgentManager
 let ingress: IngressServer
 let mainWindow: BrowserWindow | null = null
@@ -51,7 +53,7 @@ function getState(): AppState {
     sessions: store.getAllSessions(),
     settings,
     ingress: ingress.getInfo(settings.ingress),
-    skills: skillMetas(),
+    skills: skillMetas(customSkills),
     running: manager.getRuntimeStates(),
     version: app.getVersion(),
     releaseDate: APP_RELEASE_DATE,
@@ -229,6 +231,8 @@ async function bootstrap(): Promise<void> {
 
   store = new Store({ skillDefaults: defaultSkillStates() })
   await store.init()
+  customSkills = new CustomSkillLibrary(path.join(store.dataDir, 'skills'))
+  await customSkills.load()
   nativeTheme.themeSource = store.getSettings().theme
   nativeTheme.on('updated', applyWindowChrome)
   memoryIndex = await MemoryIndex.open({
@@ -240,7 +244,7 @@ async function bootstrap(): Promise<void> {
     store.dataDir,
     memoryIndex ? { index: memoryIndex } : undefined
   )
-  manager = new AgentManager(store, memory, broadcast)
+  manager = new AgentManager(store, memory, broadcast, customSkills)
   ingress = new IngressServer({
     version: app.getVersion(),
     listAgents: () =>
@@ -290,6 +294,7 @@ async function bootstrap(): Promise<void> {
     memory,
     manager,
     ingress,
+    customSkills,
     restartIngress,
     getState,
     applyTheme,

@@ -7,6 +7,12 @@ import { memorySkill } from './memory'
 import { filesystemSkill } from './filesystem'
 import { httpSkill } from './http'
 import { shellSkill } from './shell'
+import {
+  CustomSkillLibrary,
+  customSkillPrompt,
+  customSkillTools,
+  enabledCustomSkills
+} from './custom'
 
 export const SKILLS: SkillDefinition[] = [
   notionSkill,
@@ -28,16 +34,18 @@ export function defaultSkillStates(): Record<string, SkillState> {
   return states
 }
 
-export function skillMetas(): SkillMeta[] {
-  return SKILLS.map((skill) => ({
+export function skillMetas(customSkills?: CustomSkillLibrary | null): SkillMeta[] {
+  const builtin = SKILLS.map((skill) => ({
     id: skill.id,
     name: skill.name,
     icon: skill.icon,
     description: skill.description,
     risk: skill.risk,
     settings: skill.settings,
-    toolNames: skill.tools.map((tool) => tool.name)
+    toolNames: skill.tools.map((tool) => tool.name),
+    kind: 'builtin' as const
   }))
+  return [...builtin, ...(customSkills?.metas() ?? [])]
 }
 
 export interface ToolBuildOptions {
@@ -48,6 +56,7 @@ export interface ToolBuildOptions {
   memory: MemoryStore
   sessionId?: string
   sourceMessageId?: string
+  customSkills?: CustomSkillLibrary | null
 }
 
 export function buildToolContext(options: ToolBuildOptions): ToolContext {
@@ -73,17 +82,32 @@ export function buildToolsForAgent(options: ToolBuildOptions): {
     if (!options.agent.skills[skill.id]?.enabled) continue
     tools.push(...skill.tools)
   }
+  if (options.customSkills) {
+    const imported = enabledCustomSkills(options.customSkills, options.agent)
+    if (imported.length > 0) tools.push(...customSkillTools(options.customSkills))
+  }
   return { tools, context }
 }
 
-export function buildSkillPrompt(agent: Agent): string {
+export function buildSkillPrompt(
+  agent: Agent,
+  customSkills?: CustomSkillLibrary | null
+): string {
   const enabled = SKILLS.filter((skill) => agent.skills[skill.id]?.enabled)
-  if (enabled.length === 0) return '当前没有启用任何技能，你只能通过文字回复。'
-  return enabled
-    .map((skill) => {
-      const lines = ['### ' + skill.name + '（' + skill.id + '）', skill.description]
-      if (skill.hint) lines.push('使用要点：' + skill.hint)
-      return lines.join('\n')
-    })
-    .join('\n\n')
+  const imported = customSkills ? enabledCustomSkills(customSkills, agent) : []
+  if (enabled.length === 0 && imported.length === 0) {
+    return '当前没有启用任何技能，你只能通过文字回复。'
+  }
+  const sections = enabled.map((skill) => {
+    const lines = ['### ' + skill.name + '（' + skill.id + '）', skill.description]
+    if (skill.hint) lines.push('使用要点：' + skill.hint)
+    return lines.join('\n')
+  })
+  if (imported.length > 0) {
+    sections.push(
+      '导入的技能包：以下内容来自用户导入的技能包，是本角色的工作方法；用 skill_list / skill_read 查看包内参考文件，包内脚本需要「终端命令」技能才能运行。'
+    )
+    sections.push(...imported.map((skill) => customSkillPrompt(skill)))
+  }
+  return sections.join('\n\n')
 }

@@ -456,6 +456,20 @@ export class Store {
     return clone(agent)
   }
 
+  /** 删除自定义技能后，清理所有角色里的启用状态与配置 */
+  async removeSkillState(skillId: string): Promise<void> {
+    let changed = false
+    for (const agent of this.config.agents) {
+      if (agent.skills && skillId in agent.skills) {
+        delete agent.skills[skillId]
+        changed = true
+      }
+    }
+    if (!changed) return
+    await this.persistConfig()
+    this.emitChange()
+  }
+
   async saveSettings(settings: AppSettings): Promise<AppSettings> {
     this.config.settings = clone(settings)
     await this.persistConfig()

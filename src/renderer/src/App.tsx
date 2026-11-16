@@ -7,6 +7,7 @@ import type {
   ChatAttachment,
   ChatMessage,
   Session,
+  SkillMeta,
   ThemeMode,
   UpdateInfo,
   WhatsNewData
@@ -702,6 +703,61 @@ export default function App() {
     [notify]
   )
 
+  const importSkillFolder = useCallback(async (): Promise<boolean> => {
+    try {
+      const outcome = await window.api.importSkillFolder()
+      if (outcome.canceled) return false
+      setState((prev) =>
+        prev ? { ...prev, skills: outcome.state.skills } : outcome.state
+      )
+      notify('success', '已导入技能「' + (outcome.name ?? '') + '」')
+      return true
+    } catch (error: any) {
+      notify('error', '导入技能失败：' + (error?.message ?? String(error)))
+      return false
+    }
+  }, [notify])
+
+  const importSkillFromUrl = useCallback(
+    async (url: string): Promise<boolean> => {
+      const outcome = await window.api.importSkillFromUrl(url)
+      setState((prev) =>
+        prev ? { ...prev, skills: outcome.state.skills } : outcome.state
+      )
+      notify('success', '已导入技能「' + (outcome.name ?? '') + '」')
+      return true
+    },
+    [notify]
+  )
+
+  const requestRemoveSkill = useCallback(
+    (skill: SkillMeta) => {
+      setConfirm({
+        title: '删除技能「' + skill.name + '」？',
+        message: '技能包文件会从本机删除，并在所有角色中取消启用。此操作不可撤销，可以稍后重新导入。',
+        confirmLabel: '删除技能',
+        danger: true,
+        action: async () => {
+          const next = await window.api.removeSkill(skill.id)
+          setState(next)
+          notify('success', '技能已删除')
+        }
+      })
+    },
+    [notify]
+  )
+
+  const revealSkillDir = useCallback(
+    async (skill: SkillMeta) => {
+      try {
+        await window.api.revealSkillDir(skill.id)
+      } catch (error: any) {
+        notify('error', '打开技能目录失败：' + (error?.message ?? String(error)))
+      }
+    },
+    [notify]
+  )
+
   const handleSelectAgent = useCallback(
     (agentId: string) => {
       setExpandedAgents((prev) => new Set(prev).add(agentId))
@@ -869,6 +925,10 @@ export default function App() {
               notify={notify}
               focusMessageId={focusMessageId}
               onFocusConsumed={() => setFocusMessageId(null)}
+              onImportSkillFolder={importSkillFolder}
+              onImportSkillUrl={importSkillFromUrl}
+              onRemoveSkill={requestRemoveSkill}
+              onRevealSkill={revealSkillDir}
             />
           ) : null}
 

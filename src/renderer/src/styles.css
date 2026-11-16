@@ -1846,6 +1846,143 @@ pre,
   color: var(--muted);
 }
 
+.skill-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 2px 0 12px;
+}
+
+.skill-section-head h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.skill-section-head p {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.skill-section-custom {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px dashed var(--line);
+}
+
+.skill-import-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.skill-card-imported .skill-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 11px 0 0 50px;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.skill-origin {
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.82;
+}
+
+.skill-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skill-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 13px 0 0 50px;
+}
+
+.skill-actions .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.link-btn.link-danger {
+  color: var(--danger);
+}
+
+.link-btn.link-danger:hover {
+  color: var(--danger);
+  opacity: 0.8;
+}
+
+.skill-card-imported .skill-global-hint {
+  margin: 11px 0 0 50px;
+}
+
+.skill-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 18px 19px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.skill-empty-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  color: var(--faint);
+}
+
+.skill-empty strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.skill-empty p {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--faint);
+}
+
+.modal.modal-wide {
+  width: min(560px, calc(100vw - 48px));
+}
+
+.modal .field {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 900px) {
+  .skill-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 /* ---------- chat ---------- */
 
 .chat {

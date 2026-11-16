@@ -23,7 +23,7 @@ AgentRoles 是一个本地优先的桌面多 Agent 工作台。你可以为「�
 | 多会话 | 每个角色可有多条独立会话，侧边栏展开角色即可切换历史会话；首条消息自动生成标题 |
 | 独立模型 | 每个角色单独配置服务地址、Key、模型、温度与最大 tokens；支持一键从服务端拉取模型列表并选择 |
 | 可编辑职责 | 内置角色模板，职责描述就是该角色的系统提示词 |
-| 独立技能 | 按角色启停技能；Notion 还支持独立数据库与 Token 覆盖 |
+| 独立技能 | 按角色启停内置技能；支持导入 SKILL.md 技能包（本地文件夹 / Git 仓库 / ZIP）；Notion 还支持独立数据库与 Token 覆盖 |
 | 图片与文件 | 支持粘贴截图、拖入文件、点击输入框左下角 + 选择；图片走多模态，文本文件读取内容，PDF 按模型能力作为文档发送 |
 | 工具调用 | 流式对话 + 多轮工具调用，工具结果以卡片展示 |
 | 外部投递 | 本地 HTTP API、MCP Server（stdio）、CLI 三种入口 |
@@ -111,7 +111,11 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 - 暂无 Release 或网络不可用时，使用内置 `resources/changelog.json` 兜底
 - 启动时静默检查最新版本；有未读版本时，「新功能」右侧显示圆点，打开后自动记录已读版本（多窗口共享）
 
-## 内置技能
+## 技能
+
+技能分两类：随应用提供的**内置技能**（代码实现的工具），以及从外部导入的**自定义技能**（SKILL.md 说明 + 参考文件）。
+
+### 内置技能
 
 | 技能 | 工具 | 默认 | 说明 |
 | --- | --- | --- | --- |
@@ -124,6 +128,20 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 > 终端与文件技能具备操作本机的能力，只应在可信角色上启用。技能是否启用就是权限边界。
 
 ![技能配置](docs/assets/skills.png)
+
+### 自定义技能
+
+在「角色 → 技能 → 自定义技能」导入一个技能包，导入后全局可见，每个角色单独启用：
+
+- **本地文件夹**：选择根目录包含 `SKILL.md` 的文件夹。
+- **Git 仓库 / 子目录**：填 `https://github.com/owner/repo` 或 `.../tree/main/skills/foo`。
+- **ZIP 链接**：填任意 `http(s)://...zip`。
+
+启用后，技能正文会进入该角色的系统提示词，并自动提供 `skill_list` / `skill_read` 两个只读工具，用来查看包内参考文件。技能包里的脚本不会自动执行；需要运行脚本时，请同时启用「终端命令」技能。
+
+例如导入 [lieflat-less-ai-tone](https://github.com/larashero3-dotcom/lieflat-less-ai-tone) 后，就可以让角色按它的流程检测文稿，再调用包内的 `detect.py` / `report.py`。
+
+技能包格式、存储位置、安全边界与排查见 [自定义技能](docs/custom-skills.md)。
 
 ### 长期记忆
 
@@ -207,7 +225,7 @@ node resources/agentroles-cli.mjs send \
 src/
   main/
     engine/       模型适配（OpenAI / Responses / Anthropic）与 Agent 运行循环
-    skills/       技能注册表、Notion、文件、HTTP、记忆、终端
+    skills/       技能注册表、自定义技能包、Notion、文件、HTTP、记忆、终端
     memory/       长期记忆（结构化记录、写入锁、FTS5/向量索引、自动提取）
     ingress/      本地 HTTP 消息入口
     store.ts      配置、会话、密钥加密与持久化
@@ -233,8 +251,9 @@ npm run test:notion         # 用模拟 Notion API 验证属性映射
 npm run test:models         # 模型列表接口（OpenAI 兼容 / Anthropic）
 npm run test:integrations   # MCP Server + CLI
 npm run test:update         # 语义化版本比较
+npm run test:skills         # SKILL.md 解析、ZIP 导入、技能文件读取
 npm run test:migration      # 旧版单会话消息迁移到默认会话
-npm run test:e2e            # Playwright：工具循环、多会话/右键菜单、标题栏/新功能、头像、主题与外部 session 路由
+npm run test:e2e            # Playwright：工具循环、多会话/右键菜单、自定义技能启用、标题栏/新功能、头像、主题与外部 session 路由
 npm run test:all            # 全部
 ```
 

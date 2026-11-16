@@ -14,6 +14,7 @@ import type { Store } from '../store'
 import type { MemoryStore } from '../memory/store'
 import { extractMemoryCandidates } from '../memory/extract'
 import { buildToolsForAgent } from '../skills'
+import type { CustomSkillLibrary } from '../skills/custom'
 import { truncate } from '../skills/types'
 import { buildMemoryContext, buildSystemPrompt, userContentForLlm } from './prompt'
 import { streamChat, type LlmMessage } from './llm'
@@ -166,7 +167,8 @@ export class AgentManager {
   constructor(
     private readonly store: Store,
     private readonly memory: MemoryStore,
-    private readonly emit: (event: AgentEvent) => void
+    private readonly emit: (event: AgentEvent) => void,
+    private readonly customSkills: CustomSkillLibrary | null = null
   ) {}
 
   private runtime(sessionId: string): Runtime {
@@ -422,7 +424,8 @@ export class AgentManager {
       signal,
       memory: this.memory,
       sessionId,
-      sourceMessageId: triggerId
+      sourceMessageId: triggerId,
+      customSkills: this.customSkills
     })
     let current: ChatMessage | null = null
     let finished = false
@@ -453,7 +456,7 @@ export class AgentManager {
 
         const result = await streamChat({
           model: agent.model,
-          system: buildSystemPrompt(agent, settings, memoryContext),
+          system: buildSystemPrompt(agent, settings, memoryContext, this.customSkills),
           messages: history,
           tools: tools.map((tool) => ({
             name: tool.name,

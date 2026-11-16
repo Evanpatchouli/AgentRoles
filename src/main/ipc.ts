@@ -22,6 +22,7 @@ import type { Store } from './store'
 import type { MemoryStore } from './memory/store'
 import type { AgentManager } from './engine/runner'
 import type { IngressServer } from './ingress/server'
+import type { CustomSkillLibrary } from './skills/custom'
 import { streamChat } from './engine/llm'
 import { embedTexts } from './memory/embedding'
 import { listModelsForProvider } from './engine/models'
@@ -32,6 +33,7 @@ interface IpcDeps {
   memory: MemoryStore
   manager: AgentManager
   ingress: IngressServer
+  customSkills: CustomSkillLibrary
   restartIngress: () => Promise<IngressInfo>
   getState: () => AppState
   applyTheme: (theme: ThemeMode) => void
@@ -202,6 +204,42 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   ipcMain.handle('inbox:list', () => store.getInbox())
+
+  ipcMain.handle('skills:importFolder', async (event) => {
+    const options = {
+      title: '导入技能文件夹（根目录需包含 SKILL.md）',
+      properties: ['openDirectory' as const]
+    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true, state: deps.getState() }
+    }
+    const skill = await deps.customSkills.importFolder(result.filePaths[0])
+    return { canceled: false, name: skill.meta.name, state: deps.getState() }
+  })
+
+  ipcMain.handle('skills:importUrl', async (_event, url: string) => {
+    const skill = await deps.customSkills.importUrl(String(url ?? ''))
+    return { canceled: false, name: skill.meta.name, state: deps.getState() }
+  })
+
+  ipcMain.handle('skills:remove', async (_event, id: string) => {
+    const skill = deps.customSkills.get(String(id ?? ''))
+    if (!skill) throw new Error('技能不存在')
+    await deps.customSkills.remove(skill.meta.id)
+    await store.removeSkillState(skill.meta.id)
+    return deps.getState()
+  })
+
+  ipcMain.handle('skills:reveal', async (_event, id: string) => {
+    const skill = deps.customSkills.get(String(id ?? ''))
+    if (!skill) throw new Error('技能不存在')
+    const message = await shell.openPath(skill.dir)
+    if (message) throw new Error(message)
+  })
 
   ipcMain.handle('agents:create', async () => {
     const agent = await store.createAgent()

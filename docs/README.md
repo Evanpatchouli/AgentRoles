@@ -5,6 +5,7 @@ AgentRoles 是一个本地优先的多角色 Agent 桌面工作台。本目录�
 ## 开始使用
 
 - [项目 README](../README.md)：功能概览、快速开始、打包与常见配置
+- [自定义技能](custom-skills.md)：导入 SKILL.md 技能包、参考文件与脚本
 - [Notion 集成](notion.md)：创建任务、更新状态、属性映射与排查
 
 ## 外部 Agent 接入

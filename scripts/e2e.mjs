@@ -10,6 +10,25 @@ const root = process.cwd()
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'agentroles-e2e-'))
 const workspace = path.join(userData, 'workspace')
 fs.mkdirSync(workspace, { recursive: true })
+const customSkillDir = path.join(userData, 'skills', 'e2e-custom-skill')
+fs.mkdirSync(path.join(customSkillDir, 'references'), { recursive: true })
+fs.writeFileSync(
+  path.join(customSkillDir, 'SKILL.md'),
+  [
+    '---',
+    'name: e2e-custom-skill',
+    'description: 用于验证自定义技能卡片、启用与保存。',
+    'version: 1.0.0',
+    '---',
+    '',
+    '# E2E 自定义技能',
+    '',
+    '执行前先读 references/note.md。',
+    ''
+  ].join('\n'),
+  'utf8'
+)
+fs.writeFileSync(path.join(customSkillDir, 'references', 'note.md'), 'E2E 参考内容', 'utf8')
 const attachmentFilePath = path.join(userData, 'attachment.txt')
 fs.writeFileSync(attachmentFilePath, '这是通过聊天附件上传的文本文件。\n第二行内容。', 'utf8')
 const ingressPort = 43177
@@ -262,6 +281,30 @@ try {
   fs.mkdirSync(path.join(root, 'screenshots'), { recursive: true })
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-initial.png') })
   console.log('[e2e] initial UI rendered')
+
+  await page.locator('.tab').filter({ hasText: '技能' }).click()
+  await page.waitForSelector('.skill-card-imported')
+  const importedSkillText = await page.locator('.skill-card-imported').innerText()
+  assert.ok(importedSkillText.includes('e2e-custom-skill'))
+  assert.ok(importedSkillText.includes('skill_read'))
+  assert.ok(importedSkillText.includes('2 个文件'))
+  await page.locator('.skill-card-imported .toggle').click()
+  await page.locator('.panel-head .btn-primary').click()
+  await page.waitForFunction(() => !document.querySelector('.dirty-flag.is-dirty'))
+  const configAfterSkillSave = JSON.parse(
+    fs.readFileSync(path.join(userData, 'config.json'), 'utf8')
+  )
+  assert.equal(
+    configAfterSkillSave.agents[0].skills['custom:e2e-custom-skill']?.enabled,
+    true
+  )
+  await page.getByRole('button', { name: '从链接导入' }).click()
+  await page.waitForSelector('.modal.modal-wide')
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('.modal.modal-wide'))
+  await page.locator('.tab').filter({ hasText: '会话' }).click()
+  await page.waitForSelector('.composer textarea')
+  console.log('[e2e] custom skill card + enable/save + import dialog OK')
 
   await page.fill('.composer textarea', '记录一下：AgentRoles 项目启动')
   await page.press('.composer textarea', 'Enter')

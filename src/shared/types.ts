@@ -292,6 +292,18 @@ export interface SkillMeta {
   risk?: 'low' | 'medium' | 'high'
   settings: SkillField[]
   toolNames: string[]
+  /** 内置技能或用户导入的技能包 */
+  kind?: 'builtin' | 'imported'
+  /** 导入来源：本地目录路径或下载地址 */
+  origin?: string
+  /** 导入技能包内的文件数 */
+  fileCount?: number
+  /** 导入技能包内的脚本文件（相对路径） */
+  scripts?: string[]
+  /** SKILL.md frontmatter 中的版本号 */
+  version?: string
+  /** 导入时间 */
+  importedAt?: number
 }
 
 declare const __APP_RELEASE_DATE__: string | undefined
@@ -360,6 +372,13 @@ export interface AppState {
   version: string
   releaseDate: string
   dataDir: string
+}
+
+export interface SkillImportOutcome {
+  canceled: boolean
+  /** 新导入或更新的技能名称 */
+  name?: string
+  state: AppState
 }
 
 export interface SendResult {
@@ -496,6 +515,10 @@ export interface AgentRolesApi {
   listModels(model: ModelSettings): Promise<ModelListResult>
   testNotion(notion: NotionSettings): Promise<TestResult>
   testEmbedding(embedding: EmbeddingSettings): Promise<TestResult>
+  importSkillFolder(): Promise<SkillImportOutcome>
+  importSkillFromUrl(url: string): Promise<SkillImportOutcome>
+  removeSkill(id: string): Promise<AppState>
+  revealSkillDir(id: string): Promise<void>
   chooseWorkspace(): Promise<string | null>
   restartIngress(): Promise<IngressInfo>
   copyText(text: string): Promise<void>

@@ -1,5 +1,6 @@
 import type { Agent, AppSettings, ChatMessage, MemoryRecord } from '@shared/types'
 import { buildSkillPrompt } from '../skills'
+import type { CustomSkillLibrary } from '../skills/custom'
 
 const MEMORY_KIND_LABEL: Record<string, string> = {
   profile: '身份',
@@ -77,7 +78,8 @@ export function userContentForLlm(message: ChatMessage): string {
 export function buildSystemPrompt(
   agent: Agent,
   settings: AppSettings,
-  memoryContext = ''
+  memoryContext = '',
+  customSkills?: CustomSkillLibrary | null
 ): string {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'
   const now = new Date().toLocaleString('zh-CN', { hour12: false })
@@ -95,7 +97,7 @@ export function buildSystemPrompt(
     ...(memoryContext ? ['', memoryContext] : []),
     '',
     '## 可用技能',
-    buildSkillPrompt(agent),
+    buildSkillPrompt(agent, customSkills),
     '',
     '## 工作原则',
     '- 先判断再行动。需要事实时调用工具确认，不要臆造数据或链接。',

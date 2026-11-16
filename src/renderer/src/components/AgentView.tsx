@@ -38,7 +38,11 @@ export function AgentView({
   onStop,
   notify,
   focusMessageId,
-  onFocusConsumed
+  onFocusConsumed,
+  onImportSkillFolder,
+  onImportSkillUrl,
+  onRemoveSkill,
+  onRevealSkill
 }: {
   agent: Agent
   session: Session
@@ -58,6 +62,10 @@ export function AgentView({
   notify: (kind: 'success' | 'error' | 'info', text: string) => void
   focusMessageId: string | null
   onFocusConsumed: () => void
+  onImportSkillFolder: () => Promise<boolean>
+  onImportSkillUrl: (url: string) => Promise<boolean>
+  onRemoveSkill: (skill: SkillMeta) => void
+  onRevealSkill: (skill: SkillMeta) => void
 }) {
   const enabledSkills = skills.filter((skill) => agent.skills[skill.id]?.enabled).length
   const pendingExternal = messages.filter(
@@ -178,6 +186,10 @@ export function AgentView({
             settings={settings}
             onSave={onSaveAgent}
             notify={notify}
+            onImportFolder={onImportSkillFolder}
+            onImportUrl={onImportSkillUrl}
+            onRemoveSkill={onRemoveSkill}
+            onRevealSkill={onRevealSkill}
           />
         ) : null}
 
