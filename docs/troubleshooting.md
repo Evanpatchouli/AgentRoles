@@ -2,7 +2,7 @@
 
 本文按入口整理常见问题。更多配置细节见 [MCP 接入](mcp.md)、[接入总览](integrations.md) 和 [发布与检查更新](release-and-update.md)。
 
-- 适用版本：AgentRoles v0.1.5
+- 适用版本：AgentRoles v0.1.6
 - 最后验证：2026-11-17
 
 ## 1. MCP / Codex 连不上
@@ -62,6 +62,7 @@
 | 下载完成后应用没有重启 | 检查安装器是否带 `--force-run`、是否被安全软件拦截；查看日志 `[update]` |
 | 未读圆点不消失 | 打开新功能并成功加载；必要时清理 localStorage |
 | 新功能数据不更新 | 6 小时缓存；点击刷新强制更新 |
+| 检查更新提示接口上限（HTTP 403） | 未认证 GitHub API 限额为每 IP 60 次/小时；应用会回退到本地缓存并提示预计恢复时间，稍后重试或更换网络 |
 
 ## 6. 窗口与托盘
 
@@ -79,6 +80,7 @@
 - 配置：`config.json`
 - 会话：`sessions.json`、`messages/<sessionId>.json`
 - 版本记录缓存：`releases-cache.json`
+- 更新检查缓存：`update-check-cache.json`
 - 长期记忆：`memory/<agentId>.json`
 - 长期记忆备份：`memory/<agentId>.json.bak`（主文件损坏时会自动回退；不要手动删除正在使用的备份）
 - 待确认记忆：`memory/<agentId>.pending.json`

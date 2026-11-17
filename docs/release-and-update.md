@@ -2,7 +2,7 @@
 
 本文说明 AgentRoles 的版本发布、GitHub Release、检查更新、应用内自动更新和新功能记录机制。
 
-- 适用版本：AgentRoles v0.1.5
+- 适用版本：AgentRoles v0.1.6
 - 最后验证：2026-11-17
 - 相关文档：[文档索引](README.md) · [MCP 接入](mcp.md) · [故障排查](troubleshooting.md)
 
@@ -14,7 +14,7 @@
 
 ~~~json
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "releaseDate": "2026-11-17"
 }
 ~~~
@@ -40,7 +40,7 @@ https://api.github.com/repos/Evanpatchouli/AgentRoles/releases?per_page=20
 发布时：
 
 1. 将 `package.json` 的 `version` 提升到新版本
-2. 创建对应 tag，例如 `v0.1.5`
+2. 创建对应 tag，例如 `v0.1.6`
 3. 创建 GitHub Release（不要只创建 tag）
 4. 上传 setup `.exe` 安装包
 5. 在 Release body 中写更新说明
@@ -86,7 +86,17 @@ AGENTROLES_DISABLE_UPDATE_CHECK=1
 4. 有新版：弹出更新窗口，显示版本、发布时间、Markdown 说明与「立即更新」
 5. 已是最新：提示「已是最新版本」
 6. 仓库没有 Release：提示「项目暂未发布 Release」
-7. 网络或接口失败：提示错误，不修改本地状态
+7. 网络或接口失败：有缓存时回退到最近一次结果；无缓存时提示错误
+
+### 接口限额与本地缓存
+
+AgentRoles 使用未认证的 GitHub API，限额为每 IP 每小时 60 次。为减少请求：
+
+- 启动时的自动检查命中 10 分钟内的本地缓存（`userData/update-check-cache.json`）时不再发起请求
+- 其余请求携带 `If-None-Match`；内容未变化时 GitHub 返回 304，不消耗限额
+- 接口限额（403/429）、5xx 或网络异常时回退到最近一次缓存结果
+- 没有缓存时提示限额与预计恢复时间
+- 手动检查与安装前复核会跳过 10 分钟节流，但仍使用条件请求
 
 窗口底部按钮：
 
@@ -151,11 +161,11 @@ npm run release
 5. 为 `.exe` 与 `.blockmap` 生成 `SHA256SUMS.txt`
 6. 打印产物大小与后续发布命令
 
-产物示例（`release/0.1.5/`）：
+产物示例（`release/0.1.6/`）：
 
 ~~~text
-AgentRoles.Setup.0.1.5.exe
-AgentRoles.Setup.0.1.5.exe.blockmap
+AgentRoles.Setup.0.1.6.exe
+AgentRoles.Setup.0.1.6.exe.blockmap
 SHA256SUMS.txt
 latest.yml
 win-unpacked/
@@ -168,11 +178,11 @@ win-unpacked/
 ~~~bash
 npm run release
 git add -A
-git commit -m "chore(release): 发布 v0.1.5"
-git tag v0.1.5
+git commit -m "chore(release): 发布 v0.1.6"
+git tag v0.1.6
 git push origin main --tags
-gh release create v0.1.5 release/0.1.5/AgentRoles.Setup.0.1.5.exe \
-  --title "AgentRoles v0.1.5" --notes-file notes.md
+gh release create v0.1.6 release/0.1.6/AgentRoles.Setup.0.1.6.exe \
+  --title "AgentRoles v0.1.6" --notes-file notes.md
 ~~~
 
 发布后确认：
@@ -236,7 +246,7 @@ npm run release
 | 现象 | 检查 |
 | --- | --- |
 | 一直提示暂无 Release | 是否创建了 GitHub Release，而不是只有 tag |
-| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.5` |
+| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.6` |
 | 新功能显示内置说明 | Release 列表为空、离线或接口失败；可点刷新 |
 | 点击立即更新提示缺少 SHA-256 摘要 | Release 资产没有 `digest`；重新上传资产或重新创建 Release |
 | 下载后校验失败 | 资产被替换、代理改写内容或下载不完整；重试或重新上传 |

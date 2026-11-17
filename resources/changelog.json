@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "version": "0.1.6",
+      "name": "AgentRoles v0.1.6",
+      "publishedAt": "2026-11-17",
+      "body": "### 改进\n\n- 检查更新增加本地缓存与 10 分钟节流：自动检查命中缓存时不再请求 GitHub\n- 检查更新使用 ETag 条件请求，内容未变化时返回 304，不消耗接口限额\n- 接口限额、服务异常或网络失败时自动回退到最近一次缓存结果\n\n### 修复\n\n- GitHub 接口限额时提示预计恢复时间，不再只显示 HTTP 403\n\n### 注意\n\n- 安装包未签名，Windows 可能提示未知发布者\n- 自动更新会静默安装并重启应用；也可以直接下载下方安装包手动升级",
+      "htmlUrl": "https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.6",
+      "prerelease": false
+    },
+    {
       "version": "0.1.5",
       "name": "AgentRoles v0.1.5",
       "publishedAt": "2026-11-17",

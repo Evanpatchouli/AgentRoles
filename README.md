@@ -265,7 +265,7 @@ E2E 测试会使用临时 `userData`，不会污染你的真实配置。
 「检查更新」读取 GitHub Releases 的 latest，每次启动也会自动检查一次。发布时请：
 
 1. 将 `package.json` 的 `version` 与 `releaseDate` 提升到新版本。
-2. 创建对应 tag（例如 `v0.1.5`）的 GitHub Release。
+2. 创建对应 tag（例如 `v0.1.6`）的 GitHub Release。
 3. 上传 setup `.exe` 安装包；自动更新会下载、校验 SHA-256 后静默安装并重启。
 4. 保证 Release 的 tag 版本高于当前 `package.json` 版本，且资产带有 GitHub 生成的 `digest`。
 
