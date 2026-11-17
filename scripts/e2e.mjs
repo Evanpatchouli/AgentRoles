@@ -105,10 +105,10 @@ const modelServer = http.createServer((request, response) => {
     response.end(
       JSON.stringify([
         {
-          tag_name: 'v0.1.4',
-          name: 'AgentRoles v0.1.4',
+          tag_name: 'v0.1.5',
+          name: 'AgentRoles v0.1.5',
           published_at: '2026-11-17T00:00:00Z',
-          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.4',
+          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.5',
           body: '### 新功能\n\n- 应用内自动更新：下载、校验并静默安装\n- 启动时自动检查更新',
           draft: false,
           prerelease: false
@@ -139,18 +139,18 @@ const modelServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' })
     response.end(
       JSON.stringify({
-        tag_name: 'v0.1.4',
-        name: 'AgentRoles v0.1.4',
+        tag_name: 'v0.1.5',
+        name: 'AgentRoles v0.1.5',
         published_at: '2026-11-17T00:00:00Z',
-        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.4',
+        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.5',
         body: '测试更新说明：自动更新与发布流程。',
         assets: [
           {
-            name: 'AgentRoles.Setup.0.1.4.exe',
+            name: 'AgentRoles.Setup.0.1.5.exe',
             size: 1234,
             digest: 'sha256:' + 'a'.repeat(64),
             browser_download_url:
-              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.4/AgentRoles.Setup.0.1.4.exe'
+              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.5/AgentRoles.Setup.0.1.5.exe'
           }
         ]
       })
@@ -973,8 +973,8 @@ try {
   await page.waitForTimeout(300)
   const updateText = await page.locator('.update-card').innerText()
   assert.ok(updateText.includes('发现新版本'))
+  assert.ok(updateText.includes('v0.1.5'))
   assert.ok(updateText.includes('v0.1.4'))
-  assert.ok(updateText.includes('v0.1.3'))
   assert.ok(updateText.includes('测试更新说明'))
   assert.ok(updateText.includes('立即更新'))
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-update.png') })

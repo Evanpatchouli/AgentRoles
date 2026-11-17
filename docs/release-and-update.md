@@ -2,7 +2,7 @@
 
 本文说明 AgentRoles 的版本发布、GitHub Release、检查更新、应用内自动更新和新功能记录机制。
 
-- 适用版本：AgentRoles v0.1.3
+- 适用版本：AgentRoles v0.1.4
 - 最后验证：2026-11-17
 - 相关文档：[文档索引](README.md) · [MCP 接入](mcp.md) · [故障排查](troubleshooting.md)
 
@@ -14,7 +14,7 @@
 
 ~~~json
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "releaseDate": "2026-11-17"
 }
 ~~~
@@ -40,10 +40,11 @@ https://api.github.com/repos/Evanpatchouli/AgentRoles/releases?per_page=20
 发布时：
 
 1. 将 `package.json` 的 `version` 提升到新版本
-2. 创建对应 tag，例如 `v0.1.3`
+2. 创建对应 tag，例如 `v0.1.4`
 3. 创建 GitHub Release（不要只创建 tag）
 4. 上传 setup `.exe` 安装包
 5. 在 Release body 中写更新说明
+6. 在 `resources/changelog.json` 顶部补一条同版本记录，供离线或接口失败时展示
 
 Release body 建议固定格式：
 
@@ -150,11 +151,11 @@ npm run release
 5. 为 `.exe` 与 `.blockmap` 生成 `SHA256SUMS.txt`
 6. 打印产物大小与后续发布命令
 
-产物示例（`release/0.1.3/`）：
+产物示例（`release/0.1.4/`）：
 
 ~~~text
-AgentRoles.Setup.0.1.3.exe
-AgentRoles.Setup.0.1.3.exe.blockmap
+AgentRoles.Setup.0.1.4.exe
+AgentRoles.Setup.0.1.4.exe.blockmap
 SHA256SUMS.txt
 latest.yml
 win-unpacked/
@@ -167,11 +168,11 @@ win-unpacked/
 ~~~bash
 npm run release
 git add -A
-git commit -m "chore(release): 发布 v0.1.3"
-git tag v0.1.3
+git commit -m "chore(release): 发布 v0.1.4"
+git tag v0.1.4
 git push origin main --tags
-gh release create v0.1.3 release/0.1.3/AgentRoles.Setup.0.1.3.exe \
-  --title "AgentRoles v0.1.3" --notes-file notes.md
+gh release create v0.1.4 release/0.1.4/AgentRoles.Setup.0.1.4.exe \
+  --title "AgentRoles v0.1.4" --notes-file notes.md
 ~~~
 
 发布后确认：
@@ -222,6 +223,7 @@ npm run release
 
 - [ ] `package.json` 的 `version` 已更新
 - [ ] `package.json` 的 `releaseDate` 已更新
+- [ ] `resources/changelog.json` 已补同版本条目
 - [ ] GitHub Release tag 与版本一致
 - [ ] setup `.exe` 已上传，且资产带 SHA-256 摘要
 - [ ] Release body 包含可读的更新说明
@@ -234,7 +236,7 @@ npm run release
 | 现象 | 检查 |
 | --- | --- |
 | 一直提示暂无 Release | 是否创建了 GitHub Release，而不是只有 tag |
-| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.3` |
+| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.4` |
 | 新功能显示内置说明 | Release 列表为空、离线或接口失败；可点刷新 |
 | 点击立即更新提示缺少 SHA-256 摘要 | Release 资产没有 `digest`；重新上传资产或重新创建 Release |
 | 下载后校验失败 | 资产被替换、代理改写内容或下载不完整；重试或重新上传 |

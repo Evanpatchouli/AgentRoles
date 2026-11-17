@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "version": "0.1.4",
+      "name": "AgentRoles v0.1.4",
+      "publishedAt": "2026-11-17",
+      "body": "### 新功能\n\n- 角色页签的选中指示条改为「橡皮筋」吸附动效：目标一侧先吸附到位，另一侧滞后跟随，先拉长再收紧\n- 指示条按激活页签的实测位置与宽度计算，技能数量徽标、字体或窗口尺寸变化后仍保持对齐\n\n### 改进\n\n- 页签指示条的动画遵循系统「减少动态效果」设置\n- 浅色主题下指示条继续使用降饱和的角色强调色，与深色主题观感一致\n\n### 修复\n\n- 修复技能页工具标签与下方说明文字间距过小、未对齐的问题\n\n### 注意\n\n- 安装包未签名，Windows 可能提示未知发布者\n- 自动更新会静默安装并重启应用；也可以直接下载下方安装包手动升级",
+      "htmlUrl": "https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.4",
+      "prerelease": false
+    },
+    {
       "version": "0.1.3",
       "name": "AgentRoles v0.1.3",
       "publishedAt": "2026-11-17",

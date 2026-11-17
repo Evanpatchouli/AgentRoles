@@ -2,7 +2,7 @@
 
 本文按入口整理常见问题。更多配置细节见 [MCP 接入](mcp.md)、[接入总览](integrations.md) 和 [发布与检查更新](release-and-update.md)。
 
-- 适用版本：AgentRoles v0.1.3
+- 适用版本：AgentRoles v0.1.4
 - 最后验证：2026-11-17
 
 ## 1. MCP / Codex 连不上
