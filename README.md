@@ -28,7 +28,7 @@ AgentRoles 是一个本地优先的桌面多 Agent 工作台。你可以为「�
 | 工具调用 | 流式对话 + 多轮工具调用，工具结果以卡片展示 |
 | 外部投递 | 本地 HTTP API、MCP Server（stdio）、CLI 三种入口 |
 | 窗口菜单 | 标题栏三点菜单支持新窗口、缩放/全屏、帮助/关于与关闭；关闭窗口后应用驻留托盘 |
-| 检查更新 | 读取 GitHub 最新 Release，按语义化版本比较；有新版时展示版本、发布时间、说明与下载入口 |
+| 自动更新 | 启动时与手动检查 GitHub 最新 Release；有新版可一键下载、校验 SHA-256、静默安装并自动重启 |
 | 收件箱 | 外部消息统一入箱，可自动处理，也可人工确认后处理 |
 | 主题 | 深色 / 浅色 / 跟随系统，三档入口位于标题栏，原生标题栏同步配色 |
 | 可访问性 | 强调色色块悬浮显示中文色名、色调提示与色值，便于色弱用户区分 |
@@ -68,7 +68,8 @@ npm install
 ```bash
 npm run build       # 生成 out/
 npm start           # 以生产构建启动
-npm run dist:win    # 生成 Windows 安装包到 release/
+npm run release     # 生成 Windows 安装包到 release/<version>/
+npm run dist:win    # 与 release 等价
 ```
 
 开发构建未配置代码签名，Windows 可能提示「未知发布者」；正式分发前请配置签名证书。
@@ -95,7 +96,7 @@ npm run dist:win    # 生成 Windows 安装包到 release/
 
 - 新窗口：打开第二个独立窗口
 - 视图：放大、缩小、切换全屏
-- 帮助：新功能展示版本更新记录；检查更新会读取 GitHub 最新 Release；反馈会打开 GitHub Issues；关于显示项目名称、发布日期、版本与简介
+- 帮助：新功能展示版本更新记录；检查更新会读取 GitHub 最新 Release，有新版可直接「立即更新」（下载、校验、静默安装并重启）；反馈会打开 GitHub Issues；关于显示项目名称、发布日期、版本与简介
 - 关闭：关闭当前窗口，但应用继续在系统托盘驻留，Agent 与外部接入不会中断
 
 托盘菜单可以重新打开主窗口、新建窗口或退出应用。
@@ -261,14 +262,15 @@ E2E 测试会使用临时 `userData`，不会污染你的真实配置。
 
 ### 发布新版本
 
-「检查更新」读取 GitHub Releases 的 latest。发布时请：
+「检查更新」读取 GitHub Releases 的 latest，每次启动也会自动检查一次。发布时请：
 
-1. 将 `package.json` 的 `version` 提升到新版本。
-2. 在 GitHub 创建对应 tag（例如 `v0.1.2`）的 Release。
-3. 上传 `.exe` 安装包；检查更新会优先使用 setup 安装包，找不到时打开 Release 页面。
-4. 保证 Release 的 tag 版本高于当前 `package.json` 版本。
+1. 将 `package.json` 的 `version` 与 `releaseDate` 提升到新版本。
+2. 创建对应 tag（例如 `v0.1.3`）的 GitHub Release。
+3. 上传 setup `.exe` 安装包；自动更新会下载、校验 SHA-256 后静默安装并重启。
+4. 保证 Release 的 tag 版本高于当前 `package.json` 版本，且资产带有 GitHub 生成的 `digest`。
 
-仓库尚未创建 Release 时，检查更新会提示「项目暂未发布 Release」。
+构建产物统一由 `npm run release` 生成到 `release/<version>/`。仓库尚未创建 Release 时，检查更新会提示「项目暂未发布 Release」。
+详见 [发布与检查更新](docs/release-and-update.md)。
 
 ## 已知限制
 

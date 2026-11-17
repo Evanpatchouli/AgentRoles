@@ -16,7 +16,9 @@ import type {
   RuntimePaths,
   SessionPatch,
   TestResult,
-  ThemeMode
+  ThemeMode,
+  UpdateInstallProgress,
+  UpdateInstallResult
 } from '@shared/types'
 import type { Store } from './store'
 import type { MemoryStore } from './memory/store'
@@ -26,7 +28,8 @@ import type { CustomSkillLibrary } from './skills/custom'
 import { streamChat } from './engine/llm'
 import { embedTexts } from './memory/embedding'
 import { listModelsForProvider } from './engine/models'
-import { checkForUpdates, getWhatsNew } from './update'
+import { checkForUpdates, downloadUpdateInstaller, getWhatsNew } from './update'
+import { launchUpdateInstaller, updateDownloadDir } from './installer'
 
 interface IpcDeps {
   store: Store
@@ -160,12 +163,72 @@ function runtimePaths(): RuntimePaths {
   }
 }
 
+let updateInstallTask: Promise<UpdateInstallResult> | null = null
+let updateInstallAbort: AbortController | null = null
+
 export function registerIpc(deps: IpcDeps): void {
   const { store, memory, manager, ingress } = deps
 
   ipcMain.handle('app:state', () => deps.getState())
 
   ipcMain.handle('updates:check', () => checkForUpdates(app.getVersion()))
+
+  ipcMain.handle('updates:install', (event) => {
+    if (updateInstallTask) return updateInstallTask
+    const sender = event.sender
+    const sendProgress = (progress: UpdateInstallProgress): void => {
+      if (!sender.isDestroyed()) sender.send('updates:progress', progress)
+    }
+    const task = (async (): Promise<UpdateInstallResult> => {
+      if (!app.isPackaged) {
+        return { ok: false, message: '开发模式下不支持自动安装更新，请使用正式安装包。' }
+      }
+      if (process.platform !== 'win32') {
+        return { ok: false, message: '当前平台暂不支持自动安装更新。' }
+      }
+      // 安装前重新校验版本，避免使用渲染层缓存的过期信息。
+      const check = await checkForUpdates(app.getVersion())
+      if (!check.ok || !check.info) {
+        return { ok: false, message: check.message || '检查更新失败，请稍后重试' }
+      }
+      if (!check.info.hasUpdate) {
+        return { ok: false, message: '当前已是最新版本。' }
+      }
+      const controller = new AbortController()
+      updateInstallAbort = controller
+      const download = await downloadUpdateInstaller({
+        info: check.info,
+        targetDir: updateDownloadDir(),
+        signal: controller.signal,
+        onProgress: sendProgress
+      })
+      if (!download.ok || !download.path) {
+        return { ok: false, message: download.message, canceled: download.canceled }
+      }
+      sendProgress({ phase: 'installing' })
+      try {
+        await launchUpdateInstaller(download.path)
+      } catch (error) {
+        return {
+          ok: false,
+          message: '启动安装程序失败：' + (error instanceof Error ? error.message : String(error))
+        }
+      }
+      setTimeout(() => {
+        app.quit()
+      }, 500)
+      return { ok: true }
+    })().finally(() => {
+      updateInstallTask = null
+      updateInstallAbort = null
+    })
+    updateInstallTask = task
+    return task
+  })
+
+  ipcMain.handle('updates:cancelInstall', () => {
+    updateInstallAbort?.abort()
+  })
 
   ipcMain.handle('updates:whatsNew', (_event, force?: boolean) => {
     const resources = app.isPackaged

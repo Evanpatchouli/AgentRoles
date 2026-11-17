@@ -105,6 +105,15 @@ const modelServer = http.createServer((request, response) => {
     response.end(
       JSON.stringify([
         {
+          tag_name: 'v0.1.4',
+          name: 'AgentRoles v0.1.4',
+          published_at: '2026-11-17T00:00:00Z',
+          html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.4',
+          body: '### 新功能\n\n- 应用内自动更新：下载、校验并静默安装\n- 启动时自动检查更新',
+          draft: false,
+          prerelease: false
+        },
+        {
           tag_name: 'v0.1.3',
           name: 'AgentRoles v0.1.3',
           published_at: '2026-11-16T00:00:00Z',
@@ -130,16 +139,18 @@ const modelServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' })
     response.end(
       JSON.stringify({
-        tag_name: 'v0.1.3',
-        name: 'AgentRoles v0.1.3',
-        published_at: '2026-11-16T00:00:00Z',
-        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.3',
-        body: '测试更新说明：修复若干问题。',
+        tag_name: 'v0.1.4',
+        name: 'AgentRoles v0.1.4',
+        published_at: '2026-11-17T00:00:00Z',
+        html_url: 'https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.4',
+        body: '测试更新说明：自动更新与发布流程。',
         assets: [
           {
-            name: 'AgentRoles Setup 0.1.3.exe',
+            name: 'AgentRoles.Setup.0.1.4.exe',
+            size: 1234,
+            digest: 'sha256:' + 'a'.repeat(64),
             browser_download_url:
-              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.3/AgentRoles-Setup-0.1.3.exe'
+              'https://github.com/Evanpatchouli/AgentRoles/releases/download/v0.1.4/AgentRoles.Setup.0.1.4.exe'
           }
         ]
       })
@@ -263,6 +274,7 @@ const app = await electron.launch({
   env: {
     ...process.env,
     AGENTROLES_USER_DATA: userData,
+    AGENTROLES_DISABLE_UPDATE_CHECK: '1',
     AGENTROLES_RELEASES_API: 'http://127.0.0.1:' + modelPort + '/releases/latest',
     AGENTROLES_RELEASES_LIST_API: 'http://127.0.0.1:' + modelPort + '/releases-list'
   }
@@ -961,13 +973,22 @@ try {
   await page.waitForTimeout(300)
   const updateText = await page.locator('.update-card').innerText()
   assert.ok(updateText.includes('发现新版本'))
+  assert.ok(updateText.includes('v0.1.4'))
   assert.ok(updateText.includes('v0.1.3'))
-  assert.ok(updateText.includes('v0.1.2'))
   assert.ok(updateText.includes('测试更新说明'))
+  assert.ok(updateText.includes('立即更新'))
   await page.screenshot({ path: path.join(root, 'screenshots', 'e2e-update.png') })
+
+  // 开发模式（未打包）点击「立即更新」应给出明确失败提示，且不启动安装流程。
+  await page.locator('.update-actions .btn-primary').click()
+  await page.waitForSelector('.update-error', { timeout: 10000 })
+  assert.ok(
+    (await page.locator('.update-error').innerText()).includes('开发模式下不支持自动安装更新')
+  )
+  assert.equal(await page.locator('.update-card').count(), 1)
   await page.locator('.update-actions .btn-ghost').click()
   await page.waitForFunction(() => !document.querySelector('.update-card'))
-  console.log('[e2e] update check + update dialog OK')
+  console.log('[e2e] update check + update dialog + install guard OK')
 
   // 新窗口：从菜单打开，再用新窗口的“关闭”关闭它，主窗口不退出
   const newWindowPromise = app.waitForEvent('window')

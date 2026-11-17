@@ -1,6 +1,14 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
 import fs from 'node:fs/promises'
+import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
-import type { ReleaseNote, UpdateCheckResult, WhatsNewData } from '@shared/types'
+import type {
+  ReleaseNote,
+  UpdateCheckResult,
+  UpdateInfo,
+  UpdateInstallProgress,
+  WhatsNewData
+} from '@shared/types'
 import { APP_INTRO, APP_RELEASE_DATE } from '../shared/types'
 import { compareVersions } from '../shared/version'
 
@@ -18,7 +26,15 @@ const CACHE_FILE = 'releases-cache.json'
 
 interface ReleaseAsset {
   name?: string
+  size?: number
+  digest?: string
   browser_download_url?: string
+}
+
+export interface InstallerAsset {
+  url: string
+  size?: number
+  sha256?: string
 }
 
 interface GitHubRelease {
@@ -235,16 +251,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
     }
 
     const assets = Array.isArray(data.assets) ? data.assets : []
-    const installer =
-      assets.find(
-        (asset) =>
-          /\.exe$/i.test(asset.name || '') &&
-          /setup|install/i.test(asset.name || '') &&
-          Boolean(asset.browser_download_url)
-      ) ||
-      assets.find(
-        (asset) => /\.exe$/i.test(asset.name || '') && Boolean(asset.browser_download_url)
-      )
+    const installer = selectInstallerAsset(assets)
     const releaseUrl = data.html_url || RELEASES_PAGE
 
     return {
@@ -255,7 +262,9 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
         publishedAt: data.published_at || '',
         releaseName: data.name || undefined,
         releaseUrl,
-        downloadUrl: installer?.browser_download_url || releaseUrl,
+        downloadUrl: installer?.url || releaseUrl,
+        ...(installer?.size === undefined ? {} : { downloadSize: installer.size }),
+        ...(installer?.sha256 === undefined ? {} : { downloadSha256: installer.sha256 }),
         notes: (data.body || '').trim().slice(0, 1600) || undefined,
         hasUpdate: compareVersions(currentVersion, latestVersion) < 0
       }
@@ -274,3 +283,239 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
     clearTimeout(timer)
   }
 }
+
+/** GitHub Release 资产里的 SHA-256 摘要形如 `sha256:<64 位十六进制>`。 */
+export function parseAssetDigest(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const normalized = value.trim().toLowerCase()
+  const digest = normalized.startsWith('sha256:')
+    ? normalized.slice('sha256:'.length)
+    : normalized
+  return /^[0-9a-f]{64}$/.test(digest) ? digest : undefined
+}
+
+/**
+ * 选出用于自动更新的安装包资产：优先 setup/install 命名的 .exe，
+ * 其次任意 .exe（与「前往下载」时代的规则一致）。
+ */
+export function selectInstallerAsset(assets: ReleaseAsset[]): InstallerAsset | undefined {
+  const usable = assets.filter(
+    (asset) => Boolean(asset.browser_download_url) && /^https:\/\//i.test(asset.browser_download_url || '')
+  )
+  const installer =
+    usable.find(
+      (asset) =>
+        /\.exe$/i.test(asset.name || '') && /setup|install/i.test(asset.name || '')
+    ) || usable.find((asset) => /\.exe$/i.test(asset.name || ''))
+  if (!installer?.browser_download_url) return undefined
+  return {
+    url: installer.browser_download_url,
+    ...(typeof installer.size === 'number' && installer.size > 0
+      ? { size: installer.size }
+      : {}),
+    ...(parseAssetDigest(installer.digest) === undefined
+      ? {}
+      : { sha256: parseAssetDigest(installer.digest) })
+  }
+}
+
+const MAX_INSTALLER_BYTES = 512 * 1024 * 1024
+const PROGRESS_INTERVAL_MS = 150
+
+export interface DownloadUpdateOptions {
+  info: UpdateInfo
+  /** 安装包落盘目录，由主进程用系统临时目录提供。 */
+  targetDir: string
+  signal?: AbortSignal
+  onProgress?: (progress: UpdateInstallProgress) => void
+}
+
+export interface DownloadUpdateResult {
+  ok: boolean
+  path?: string
+  canceled?: boolean
+  message?: string
+}
+
+class UpdateDownloadAborted extends Error {
+  constructor() {
+    super('update download aborted')
+    this.name = 'UpdateDownloadAborted'
+  }
+}
+
+function isAllowedDownloadUrl(value: string): boolean {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'https:') return false
+  if (url.username || url.password) return false
+  const host = url.hostname.toLowerCase()
+  // GitHub 的资产下载会跳转到 *.githubusercontent.com 的 CDN。
+  return host === 'github.com' || host.endsWith('.githubusercontent.com')
+}
+
+function installerFileName(info: UpdateInfo): string {
+  const fallback = 'AgentRoles.Setup.' + info.latestVersion + '.exe'
+  let name = fallback
+  try {
+    const base = decodeURIComponent(new URL(info.downloadUrl).pathname.split('/').pop() || '')
+    if (/\.exe$/i.test(base)) name = base
+  } catch {
+    /* keep fallback */
+  }
+  const safe = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim()
+  return safe || fallback
+}
+
+function abortError(): UpdateDownloadAborted {
+  return new UpdateDownloadAborted()
+}
+
+/**
+ * 下载、校验并落盘最新安装包。
+ *
+ * 校验规则：必须是 Release 资产声明的 https 地址、声明了 SHA-256 摘要、
+ * 下载体积与摘要均匹配、文件头是 PE（MZ）。任一步失败都不会执行安装。
+ */
+export async function downloadUpdateInstaller(
+  options: DownloadUpdateOptions
+): Promise<DownloadUpdateResult> {
+  const { info, targetDir, signal, onProgress } = options
+  const version = info.latestVersion
+  if (compareVersions(info.currentVersion, version) >= 0) {
+    return { ok: false, message: '当前已是最新版本。' }
+  }
+  if (!isAllowedDownloadUrl(info.downloadUrl)) {
+    return { ok: false, message: '更新下载地址不可信（仅接受 GitHub 的 https 地址）。' }
+  }
+  if (!info.downloadSha256) {
+    return { ok: false, message: '发布资产缺少 SHA-256 摘要，无法校验安装包。' }
+  }
+
+  const fileName = installerFileName(info)
+  const finalPath = path.join(targetDir, fileName)
+  const partialPath = finalPath + '.partial'
+  const hash = createHash('sha256')
+  let received = 0
+  let total = info.downloadSize
+  let lastProgressAt = 0
+  let firstBytes: Buffer | null = null
+  let handle: FileHandle | null = null
+  let completed = false
+
+  const report = (phase: UpdateInstallProgress['phase'], bytes = received): void => {
+    const now = Date.now()
+    if (phase === 'downloading' && now - lastProgressAt < PROGRESS_INTERVAL_MS) return
+    lastProgressAt = now
+    const percent =
+      phase === 'downloading' && total && total > 0
+        ? Math.min(100, Math.round((bytes / total) * 100))
+        : undefined
+    onProgress?.({
+      phase,
+      ...(phase === 'downloading' ? { received: bytes } : {}),
+      ...(total === undefined ? {} : { total }),
+      ...(percent === undefined ? {} : { percent })
+    })
+  }
+
+  try {
+    signal?.throwIfAborted()
+    await fs.mkdir(targetDir, { recursive: true })
+    await fs.rm(partialPath, { force: true })
+
+    const response = await fetch(info.downloadUrl, {
+      redirect: 'follow',
+      cache: 'no-store',
+      ...(signal === undefined ? {} : { signal })
+    })
+    if (!response.ok) {
+      return { ok: false, message: '下载安装包失败（HTTP ' + response.status + '）' }
+    }
+    if (!isAllowedDownloadUrl(response.url)) {
+      return { ok: false, message: '更新下载被重定向到不可信地址，已中止。' }
+    }
+    const declared = Number(response.headers.get('content-length'))
+    if (Number.isFinite(declared) && declared > 0) total = declared
+    if (total !== undefined && total > MAX_INSTALLER_BYTES) {
+      return { ok: false, message: '安装包体积异常，已中止下载。' }
+    }
+    if (!response.body) {
+      return { ok: false, message: '更新服务返回了空的安装包。' }
+    }
+
+    handle = await fs.open(partialPath, 'w')
+    const reader = response.body.getReader()
+    try {
+      while (true) {
+        if (signal?.aborted) throw abortError()
+        const chunk = await reader.read()
+        if (chunk.done) break
+        const data = Buffer.from(chunk.value)
+        if (data.length === 0) continue
+        received += data.length
+        if (received > MAX_INSTALLER_BYTES) {
+          throw new Error('安装包体积异常')
+        }
+        if (firstBytes === null) {
+          firstBytes = Buffer.from(data.subarray(0, 2))
+        }
+        hash.update(data)
+        await handle.write(data)
+        report('downloading')
+      }
+    } finally {
+      reader.releaseLock()
+    }
+    report('downloading', received)
+    report('verifying')
+
+    await handle.close()
+    handle = null
+
+    if (signal?.aborted) throw abortError()
+    if (received === 0) {
+      return { ok: false, message: '下载到的安装包为空，已中止。' }
+    }
+    if (total !== undefined && received !== total) {
+      return {
+        ok: false,
+        message: '安装包大小与发布信息不一致（' + received + ' / ' + total + ' 字节），已中止。'
+      }
+    }
+    const actual = hash.digest()
+    const expected = Buffer.from(info.downloadSha256, 'hex')
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+      return { ok: false, message: '安装包校验失败（SHA-256 不匹配），已中止安装。' }
+    }
+    if (!firstBytes || firstBytes.toString('latin1') !== 'MZ') {
+      return { ok: false, message: '下载内容不是有效的 Windows 安装程序，已中止。' }
+    }
+
+    await fs.rename(partialPath, finalPath)
+    completed = true
+    return { ok: true, path: finalPath }
+  } catch (error) {
+    if (signal?.aborted || error instanceof UpdateDownloadAborted) {
+      return { ok: false, canceled: true, message: '已取消更新下载' }
+    }
+    return {
+      ok: false,
+      message: '下载安装包失败：' + (error instanceof Error ? error.message : String(error))
+    }
+  } finally {
+    try {
+      if (handle !== null) await handle.close()
+    } catch {
+      /* ignore close failure */
+    }
+    if (!completed) {
+      await fs.rm(partialPath, { force: true }).catch(() => undefined)
+    }
+  }
+}
+

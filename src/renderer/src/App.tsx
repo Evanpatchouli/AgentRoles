@@ -10,6 +10,7 @@ import type {
   SkillMeta,
   ThemeMode,
   UpdateInfo,
+  UpdateInstallProgress,
   WhatsNewData
 } from '@shared/types'
 import { APP_DOCS_URL, APP_FEEDBACK_URL } from '@shared/types'
@@ -95,6 +96,8 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateOpen, setUpdateOpen] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState<UpdateInstallProgress | null>(null)
+  const [updateError, setUpdateError] = useState('')
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [whatsNewData, setWhatsNewData] = useState<WhatsNewData | null>(null)
   const [whatsNewLoading, setWhatsNewLoading] = useState(false)
@@ -599,7 +602,7 @@ export default function App() {
   )
 
   const checkUpdates = useCallback(async () => {
-    if (checkingUpdate.current) return
+    if (checkingUpdate.current || updateProgress) return
     checkingUpdate.current = true
     const toastId = notify('info', '正在检查更新…')
     try {
@@ -621,6 +624,8 @@ export default function App() {
         return
       }
       setUpdateInfo(result.info)
+      setUpdateProgress(null)
+      setUpdateError('')
       setUpdateOpen(true)
     } catch (error: any) {
       notify('error', '检查更新失败：' + (error?.message ?? String(error)))
@@ -628,17 +633,53 @@ export default function App() {
       checkingUpdate.current = false
       setToasts((prev) => prev.filter((item) => item.id !== toastId))
     }
-  }, [notify])
+  }, [notify, updateProgress])
 
-  const downloadUpdate = useCallback(async () => {
+  const installUpdate = useCallback(async () => {
     if (!updateInfo) return
+    setUpdateError('')
+    setUpdateProgress({ phase: 'downloading' })
     try {
-      await window.api.openExternal(updateInfo.downloadUrl || updateInfo.releaseUrl)
-      setUpdateOpen(false)
+      const result = await window.api.installUpdate()
+      if (result.ok) {
+        setUpdateProgress({ phase: 'installing' })
+        return
+      }
+      setUpdateProgress(null)
+      if (result.canceled) {
+        notify('info', result.message || '已取消更新下载')
+        return
+      }
+      setUpdateError(result.message || '安装更新失败')
     } catch (error: any) {
-      notify('error', '打开下载链接失败：' + (error?.message ?? String(error)))
+      setUpdateProgress(null)
+      setUpdateError('安装更新失败：' + (error?.message ?? String(error)))
     }
   }, [notify, updateInfo])
+
+  const cancelUpdate = useCallback(async () => {
+    try {
+      await window.api.cancelUpdateInstall()
+    } catch {
+      /* 取消失败时保持当前下载状态 */
+    }
+  }, [])
+
+  useEffect(() => {
+    const offProgress = window.api.onUpdateProgress((progress) => {
+      setUpdateProgress(progress)
+    })
+    const offAvailable = window.api.onUpdateAvailable((info) => {
+      setUpdateInfo(info)
+      setUpdateProgress(null)
+      setUpdateError('')
+      setUpdateOpen(true)
+    })
+    return () => {
+      offProgress()
+      offAvailable()
+    }
+  }, [])
 
   const openWhatsNew = useCallback(async (force = false) => {
     setWhatsNewOpen(true)
@@ -986,8 +1027,15 @@ export default function App() {
       <UpdateDialog
         open={updateOpen}
         info={updateInfo}
-        onClose={() => setUpdateOpen(false)}
-        onDownload={() => void downloadUpdate()}
+        progress={updateProgress}
+        error={updateError}
+        onClose={() => {
+          setUpdateOpen(false)
+          setUpdateProgress(null)
+          setUpdateError('')
+        }}
+        onInstall={() => void installUpdate()}
+        onCancel={() => void cancelUpdate()}
       />
 
       <WhatsNewDialog

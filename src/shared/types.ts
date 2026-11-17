@@ -334,6 +334,10 @@ export interface UpdateInfo {
   releaseName?: string
   releaseUrl: string
   downloadUrl: string
+  /** 安装包字节数；Release 资产未提供时为 undefined。 */
+  downloadSize?: number
+  /** 安装包 SHA-256（GitHub 资产摘要）；缺失时无法校验，安装会被拒绝。 */
+  downloadSha256?: string
   notes?: string
   hasUpdate: boolean
 }
@@ -344,6 +348,26 @@ export interface UpdateCheckResult {
   noRelease?: boolean
   message?: string
   info?: UpdateInfo
+}
+
+/** 自动安装更新的阶段。 */
+export type UpdateInstallPhase = 'downloading' | 'verifying' | 'installing'
+
+export interface UpdateInstallProgress {
+  phase: UpdateInstallPhase
+  /** 已下载字节数（仅下载阶段）。 */
+  received?: number
+  /** 安装包总字节数；服务端未提供时为 undefined。 */
+  total?: number
+  /** 0-100 的整数进度；总量未知时为 undefined。 */
+  percent?: number
+}
+
+export interface UpdateInstallResult {
+  ok: boolean
+  message?: string
+  /** 用户取消下载。 */
+  canceled?: boolean
 }
 
 export interface ReleaseNote {
@@ -500,6 +524,10 @@ export interface AgentRolesApi {
   zoomWindow(direction: 'in' | 'out'): Promise<void>
   toggleFullscreen(): Promise<void>
   checkForUpdates(): Promise<UpdateCheckResult>
+  installUpdate(): Promise<UpdateInstallResult>
+  cancelUpdateInstall(): Promise<void>
+  onUpdateProgress(listener: (progress: UpdateInstallProgress) => void): () => void
+  onUpdateAvailable(listener: (info: UpdateInfo) => void): () => void
   getWhatsNew(force?: boolean): Promise<WhatsNewData>
   sendMessage(
     sessionId: string,

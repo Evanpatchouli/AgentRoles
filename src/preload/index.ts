@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AgentEvent, AgentRolesApi } from '@shared/types'
+import type {
+  AgentEvent,
+  AgentRolesApi,
+  UpdateInfo,
+  UpdateInstallProgress
+} from '@shared/types'
 
 const api: AgentRolesApi = {
   getState: () => ipcRenderer.invoke('app:state'),
@@ -32,6 +37,8 @@ const api: AgentRolesApi = {
   zoomWindow: (direction) => ipcRenderer.invoke('window:zoom', direction),
   toggleFullscreen: () => ipcRenderer.invoke('window:fullscreen'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  cancelUpdateInstall: () => ipcRenderer.invoke('updates:cancelInstall'),
   getWhatsNew: (force) => ipcRenderer.invoke('updates:whatsNew', force),
   sendMessage: (sessionId, content, attachments) =>
     ipcRenderer.invoke('messages:send', sessionId, content, attachments),
@@ -55,6 +62,17 @@ const api: AgentRolesApi = {
     const handler = (_event: unknown, payload: AgentEvent): void => listener(payload)
     ipcRenderer.on('agent:event', handler)
     return () => ipcRenderer.removeListener('agent:event', handler)
+  },
+  onUpdateProgress: (listener) => {
+    const handler = (_event: unknown, payload: UpdateInstallProgress): void =>
+      listener(payload)
+    ipcRenderer.on('updates:progress', handler)
+    return () => ipcRenderer.removeListener('updates:progress', handler)
+  },
+  onUpdateAvailable: (listener) => {
+    const handler = (_event: unknown, payload: UpdateInfo): void => listener(payload)
+    ipcRenderer.on('updates:available', handler)
+    return () => ipcRenderer.removeListener('updates:available', handler)
   }
 }
 

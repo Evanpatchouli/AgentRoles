@@ -232,7 +232,8 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 - 自定义技能包是第三方内容：导入后默认不启用；`skill_list` / `skill_read` 只读且限制在技能目录内；包内脚本只有显式启用「终端命令」后才可能被执行。
 - 本地服务不监听 0.0.0.0，不提供远程管理接口。
 - 主进程支持多窗口；标题栏更多菜单通过 IPC 执行新窗口、缩放、全屏与关闭。关闭窗口后应用驻留系统托盘，托盘可重新打开窗口或退出。
-- 检查更新由主进程请求 GitHub Releases latest（避免渲染进程 CORS），按语义化版本比较；有新版时展示版本、发布时间、Release 说明与安装包/Release 页面链接。
+- 检查更新由主进程请求 GitHub Releases latest（避免渲染进程 CORS），按语义化版本比较；启动约 2 秒后自动检查一次，有新版时把信息推给渲染进程弹出更新窗口（`AGENTROLES_DISABLE_UPDATE_CHECK=1` 可关闭）。
+- 「立即更新」在主进程完成：复核版本 → 下载安装包到临时目录 → 校验 HTTPS 域名、体积、SHA-256（GitHub 资产 `digest`）与 PE 头 → 以 `/S --updated --force-run` 启动 NSIS 安装程序并退出；渲染进程只通过 `updates:progress` 展示进度，可取消下载。
 - 「新功能」读取 Releases 列表（6 小时缓存），用内置 `resources/changelog.json` 作为无 Release/离线兜底；Release 说明经 Markdown 清洗后展示。启动时静默检查最新版本，未读版本在菜单显示圆点，打开后写入 `localStorage` 已读版本。
 
 ## 9. 验证策略
@@ -242,7 +243,7 @@ MCP 与 CLI 都是薄客户端：读取参数/环境变量后调用 HTTP 接口�
 | ~~~npm run typecheck~~~ | 主进程与渲染进程类型 |
 | ~~~npm run test:notion~~~ | 模拟 Notion API，验证创建/查询/更新与属性映射 |
 | ~~~npm run test:integrations~~~ | CLI 与 MCP Server 对 HTTP 入口的调用 |
-| ~~~npm run test:update~~~ | 语义化版本比较（含预发布版本） |
+| ~~~npm run test:update~~~ | 语义化版本比较（含预发布版本）、安装包资产选择、SHA-256 摘要与自动更新前置校验 |
 | ~~~npm run test:skills~~~ | SKILL.md frontmatter、ZIP 解包、本地/ZIP 导入、路径越界与删除 |
 | ~~~npm run test:migration~~~ | 旧版单会话消息迁移为默认会话 |
 | ~~~npm run test:e2e~~~ | Playwright 启动真实 Electron，mock 模型完成工具循环、多会话创建/切换/隔离、自定义技能启用/保存、外部消息按 session 路由 |

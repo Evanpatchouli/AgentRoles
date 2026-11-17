@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { UpdateInfo } from '@shared/types'
+import type { UpdateInfo, UpdateInstallProgress } from '@shared/types'
 import { Icon } from './Icons'
 
 function versionLabel(value: string): string {
@@ -20,40 +20,79 @@ function formatPublishedAt(value: string): string {
   })
 }
 
+function formatBytes(value?: number): string {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return ''
+  if (value < 1024) return Math.round(value) + ' B'
+  const units = ['KB', 'MB', 'GB']
+  let size = value / 1024
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return size.toFixed(size >= 10 ? 0 : 1) + ' ' + units[unit]
+}
+
+function progressSummary(progress: UpdateInstallProgress): string {
+  const received = formatBytes(progress.received) || '0 B'
+  const total = formatBytes(progress.total)
+  return total ? received + ' / ' + total : received
+}
+
 export function UpdateDialog({
   open,
   info,
+  progress,
+  error,
   onClose,
-  onDownload
+  onInstall,
+  onCancel
 }: {
   open: boolean
   info: UpdateInfo | null
+  progress: UpdateInstallProgress | null
+  error: string
   onClose: () => void
-  onDownload: () => void
+  onInstall: () => void
+  onCancel: () => void
 }) {
+  const busy = progress !== null
+  const closable = !busy
+
   useEffect(() => {
-    if (!open) return
+    if (!open || !closable) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open, closable, onClose])
 
   if (!open || !info) return null
 
+  const phase = progress?.phase
+
   return createPortal(
-    <div className="modal-backdrop update-backdrop" role="presentation" onClick={onClose}>
+    <div
+      className="modal-backdrop update-backdrop"
+      role="presentation"
+      onClick={() => {
+        if (closable) onClose()
+      }}
+    >
       <div
         className="about-card update-card"
         role="dialog"
         aria-modal="true"
+        aria-busy={busy}
         aria-labelledby="update-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="about-close icon-btn" onClick={onClose} aria-label="关闭更新窗口">
-          <Icon name="x" size={16} />
-        </button>
+        {closable ? (
+          <button className="about-close icon-btn" onClick={onClose} aria-label="关闭更新窗口">
+            <Icon name="x" size={16} />
+          </button>
+        ) : null}
 
         <div className="update-head">
           <span className="update-mark">
@@ -81,17 +120,64 @@ export function UpdateDialog({
           </div>
         </div>
 
-        {info.notes ? <p className="update-notes">{info.notes}</p> : null}
+        {info.notes && !busy ? <p className="update-notes">{info.notes}</p> : null}
+
+        {phase === 'downloading' && progress ? (
+          <div className="update-progress" role="status" aria-live="polite">
+            <div className="update-progress-head">
+              <span>正在下载更新…</span>
+              <span>{progress.percent === undefined ? '' : progress.percent + '%'}</span>
+            </div>
+            <div className="update-progress-track">
+              <span
+                className="update-progress-bar"
+                style={{ width: (progress.percent ?? 8) + '%' }}
+              />
+            </div>
+            <p className="update-progress-hint">{progressSummary(progress)}</p>
+          </div>
+        ) : null}
+
+        {phase === 'verifying' ? (
+          <p className="update-status" role="status" aria-live="polite">
+            正在校验安装包（SHA-256），校验通过后会自动安装…
+          </p>
+        ) : null}
+
+        {phase === 'installing' ? (
+          <p className="update-status" role="status" aria-live="polite">
+            正在安装更新，应用即将自动重启…
+          </p>
+        ) : null}
+
+        {error && !busy ? (
+          <p className="update-error" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <div className="about-actions update-actions">
-          <button className="btn btn-ghost" onClick={onClose}>
-            稍后再说
-          </button>
-          <button className="btn btn-primary" onClick={onDownload}>
-            <Icon name="external" size={14} />
-            前往下载
-          </button>
+          {phase === 'downloading' ? (
+            <button className="btn btn-ghost" onClick={onCancel}>
+              取消下载
+            </button>
+          ) : null}
+          {!busy ? (
+            <>
+              <button className="btn btn-ghost" onClick={onClose}>
+                稍后再说
+              </button>
+              <button className="btn btn-primary" onClick={onInstall}>
+                <Icon name="refresh" size={14} />
+                {error ? '重试' : '立即更新'}
+              </button>
+            </>
+          ) : null}
         </div>
+
+        {!busy && !error ? (
+          <p className="update-hint">下载完成后会自动校验安装包并安装，安装期间应用会重启。</p>
+        ) : null}
       </div>
     </div>,
     document.body

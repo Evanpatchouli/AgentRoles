@@ -17,6 +17,7 @@ import { MemoryIndex } from './memory/index'
 import { AgentManager } from './engine/runner'
 import { IngressServer } from './ingress/server'
 import { registerIpc } from './ipc'
+import { checkForUpdates } from './update'
 import { defaultSkillStates, skillMetas } from './skills'
 import { CustomSkillLibrary } from './skills/custom'
 
@@ -180,6 +181,34 @@ function createWindow(): BrowserWindow {
   return window
 }
 
+let startupUpdateCheckStarted = false
+
+/**
+ * 每次启动触发一次更新检查：有新版时把信息推给首屏渲染进程弹出更新窗口，
+ * 无更新或检查失败则保持静默，不打扰启动流程。
+ */
+function scheduleStartupUpdateCheck(window: BrowserWindow): void {
+  if (startupUpdateCheckStarted) return
+  startupUpdateCheckStarted = true
+  // E2E 与截图流程需要稳定的首屏，可通过环境变量关闭启动检查。
+  if (process.env.AGENTROLES_DISABLE_UPDATE_CHECK === '1') return
+  if (process.env.AGENTROLES_SCREENSHOT) return
+  window.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await checkForUpdates(app.getVersion())
+          if (!result.ok || !result.info?.hasUpdate) return
+          if (window.isDestroyed()) return
+          window.webContents.send('updates:available', result.info)
+        } catch (error) {
+          console.error('[updates] 启动检查更新失败', error)
+        }
+      })()
+    }, 2000)
+  })
+}
+
 function focusOrCreateWindow(): void {
   const target =
     mainWindow && !mainWindow.isDestroyed()
@@ -303,7 +332,8 @@ async function bootstrap(): Promise<void> {
     }
   })
   createTray()
-  createWindow()
+  const window = createWindow()
+  scheduleStartupUpdateCheck(window)
 }
 
 const gotLock = app.requestSingleInstanceLock()

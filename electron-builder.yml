@@ -3,6 +3,7 @@ productName: AgentRoles
 directories:
   output: release
   buildResources: build
+artifactName: ${productName}.Setup.${version}.${ext}
 files:
   - out/**/*
   - package.json
