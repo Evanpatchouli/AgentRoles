@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { Agent, ChatAttachment, ChatMessage, Session, SkillMeta, AppSettings } from '@shared/types'
 import { Icon } from './Icons'
@@ -11,6 +12,8 @@ import { SkillsPanel } from './SkillsPanel'
 import { MemoryPanel } from './MemoryPanel'
 
 export type AgentTab = 'chat' | 'skills' | 'memory' | 'role' | 'model'
+
+const TAB_INDICATOR_INSET = 12
 
 const TABS: Array<{ id: AgentTab; label: string; icon: string }> = [
   { id: 'chat', label: '会话', icon: 'message' },
@@ -68,6 +71,37 @@ export function AgentView({
   onRevealSkill: (skill: SkillMeta) => void
 }) {
   const enabledSkills = skills.filter((skill) => agent.skills[skill.id]?.enabled).length
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [indicator, setIndicator] = useState<{
+    left: number
+    right: number
+    direction: 'left' | 'right'
+  } | null>(null)
+
+  // 选中指示条需要一个绝对定位元素在页签之间滑动，位置跟随激活页签的实测几何。
+  useLayoutEffect(() => {
+    const container = tabsRef.current
+    if (!container) return
+    const measure = (): void => {
+      const active = container.querySelector<HTMLElement>('.tab[aria-selected="true"]')
+      if (!active) return
+      const containerRect = container.getBoundingClientRect()
+      const activeRect = active.getBoundingClientRect()
+      const left = activeRect.left - containerRect.left + TAB_INDICATOR_INSET
+      const right = containerRect.right - activeRect.right + TAB_INDICATOR_INSET
+      setIndicator((current) => ({
+        left,
+        right,
+        // 先让目标侧边缘吸附到位，另一侧滞后跟随，形成橡皮筋拉伸
+        direction: !current || left >= current.left ? 'right' : 'left'
+      }))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    container.querySelectorAll('.tab').forEach((button) => observer.observe(button))
+    return () => observer.disconnect()
+  }, [tab, enabledSkills])
   const pendingExternal = messages.filter(
     (message) =>
       message.role === 'user' &&
@@ -123,7 +157,7 @@ export function AgentView({
       </header>
 
       <div className="tabs-row">
-        <div className="tabs" role="tablist">
+        <div className="tabs" role="tablist" ref={tabsRef}>
           {TABS.map((item) => (
             <button
               key={item.id}
@@ -137,6 +171,14 @@ export function AgentView({
               {item.id === 'skills' ? <span className="tab-count">{enabledSkills}</span> : null}
             </button>
           ))}
+          {indicator ? (
+            <span
+              className="tab-indicator"
+              aria-hidden="true"
+              data-direction={indicator.direction}
+              style={{ left: indicator.left, right: indicator.right }}
+            />
+          ) : null}
         </div>
         {running.running ? (
           <button className="btn btn-ghost btn-sm" onClick={() => void onStop(session.id)}>

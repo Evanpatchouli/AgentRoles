@@ -724,8 +724,34 @@ pre,
 }
 
 .tabs {
+  position: relative;
   display: flex;
   gap: 2px;
+}
+
+/* 选中指示条：目标侧边缘先吸附过去，另一侧滞后跟随，随后收紧成橡皮筋效果 */
+.tab-indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--agent-color);
+  pointer-events: none;
+  transition-property: left, right;
+  transition-timing-function: cubic-bezier(0.22, 0.9, 0.28, 1.06);
+  transition-duration: 260ms;
+}
+
+.tab-indicator[data-direction='right'] {
+  /* 右端先行，左端拖尾 */
+  transition-duration: 280ms, 200ms;
+}
+
+.tab-indicator[data-direction='left'] {
+  /* 左端先行，右端拖尾 */
+  transition-duration: 200ms, 280ms;
 }
 
 .tab {
@@ -747,17 +773,6 @@ pre,
 
 .tab.is-active {
   color: var(--text);
-}
-
-.tab.is-active::after {
-  content: '';
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--agent-color);
 }
 
 .tab-count {
@@ -3658,7 +3673,7 @@ pre,
   background: #fff;
 }
 
-[data-theme='light'] .tab.is-active::after {
+[data-theme='light'] .tab-indicator {
   background: color-mix(in srgb, var(--agent-color) 55%, #1d2019);
 }
 
