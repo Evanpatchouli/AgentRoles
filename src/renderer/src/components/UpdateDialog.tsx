@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { UpdateInfo, UpdateInstallProgress } from '@shared/types'
 import { Icon } from './Icons'
+import { Markdown } from './Markdown'
 
 function versionLabel(value: string): string {
   return /^v/i.test(value) ? value : 'v' + value
@@ -120,7 +121,11 @@ export function UpdateDialog({
           </div>
         </div>
 
-        {info.notes && !busy ? <p className="update-notes">{info.notes}</p> : null}
+        {info.notes && !busy ? (
+          <div className="update-notes">
+            <Markdown content={info.notes} />
+          </div>
+        ) : null}
 
         {phase === 'downloading' && progress ? (
           <div className="update-progress" role="status" aria-live="polite">
