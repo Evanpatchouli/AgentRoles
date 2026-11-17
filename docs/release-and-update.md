@@ -93,7 +93,8 @@ AGENTROLES_DISABLE_UPDATE_CHECK=1
 AgentRoles 使用未认证的 GitHub API，限额为每 IP 每小时 60 次。为减少请求：
 
 - 启动时的自动检查命中 10 分钟内的本地缓存（`userData/update-check-cache.json`）时不再发起请求
-- 其余请求携带 `If-None-Match`；内容未变化时 GitHub 返回 304，不消耗限额
+- 其余请求携带 `If-None-Match`；内容未变化时返回 304，直接复用缓存结果
+- GitHub 仅对带 `Authorization` 的 304 免除限额；本应用是未认证请求，304 仍计入 60 次/小时
 - 接口限额（403/429）、5xx 或网络异常时回退到最近一次缓存结果
 - 没有缓存时提示限额与预计恢复时间
 - 手动检查与安装前复核会跳过 10 分钟节流，但仍使用条件请求

@@ -368,7 +368,7 @@ export async function checkForUpdates(
       signal: controller.signal
     })
 
-    // 304 表示内容未变化，不消耗限额；刷新检查时间即可。
+    // 304 表示内容未变化，直接复用缓存；未认证请求的 304 仍计入限额。
     if (response.status === 304) {
       if (!cached) return { ok: false, message: '检查更新失败（HTTP 304）' }
       const checkedAt = Date.now()
