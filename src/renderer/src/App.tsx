@@ -620,7 +620,13 @@ export default function App() {
         return
       }
       if (!result.info.hasUpdate) {
-        notify('success', '已是最新版本（' + result.info.latestVersion + '）')
+        notify(
+          'success',
+          '已是最新版本（' +
+            result.info.latestVersion +
+            (result.cached ? '，本地缓存' : '') +
+            '）'
+        )
         return
       }
       setUpdateInfo(result.info)

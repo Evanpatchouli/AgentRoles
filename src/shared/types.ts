@@ -348,6 +348,10 @@ export interface UpdateCheckResult {
   noRelease?: boolean
   message?: string
   info?: UpdateInfo
+  /** 结果来自本地缓存（10 分钟节流、接口限额或网络异常时的回退）。 */
+  cached?: boolean
+  /** 缓存对应的最近一次成功检查时间（毫秒时间戳）。 */
+  cachedAt?: number
 }
 
 /** 自动安装更新的阶段。 */

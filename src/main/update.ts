@@ -23,6 +23,9 @@ const RELEASES_LIST_API =
 const RELEASES_PAGE = 'https://github.com/Evanpatchouli/AgentRoles/releases'
 const CACHE_TTL = 6 * 60 * 60 * 1000
 const CACHE_FILE = 'releases-cache.json'
+const UPDATE_CACHE_FILE = 'update-check-cache.json'
+/** 自动检查的最小间隔；手动检查会跳过此节流。 */
+const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 
 interface ReleaseAsset {
   name?: string
@@ -51,6 +54,21 @@ interface GitHubRelease {
 interface ReleaseCache {
   fetchedAt: number
   releases: ReleaseNote[]
+}
+
+interface UpdateCheckCache {
+  checkedAt: number
+  etag?: string
+  release: GitHubRelease
+}
+
+export interface CheckUpdatesOptions {
+  /** 缓存目录（通常是 userData）；未提供时不做缓存与节流。 */
+  cacheDir?: string
+  /** 跳过节流并立即发起条件请求，用于手动检查与安装前复核。 */
+  force?: boolean
+  /** 测试或私有部署可覆盖接口地址。 */
+  apiUrl?: string
 }
 
 export interface WhatsNewOptions {
@@ -116,6 +134,109 @@ async function writeCache(cachePath: string, cache: ReleaseCache): Promise<void>
   } catch {
     /* cache is best-effort */
   }
+}
+
+function normalizeRelease(value: unknown): GitHubRelease | null {
+  if (!value || typeof value !== 'object') return null
+  const release = value as GitHubRelease
+  const version = String(release.tag_name || '').trim()
+  if (!version) return null
+  return {
+    ...release,
+    tag_name: version,
+    assets: Array.isArray(release.assets) ? release.assets : []
+  }
+}
+
+async function readUpdateCache(cachePath: string): Promise<UpdateCheckCache | null> {
+  try {
+    const raw = await fs.readFile(cachePath, 'utf8')
+    const parsed = JSON.parse(raw) as Partial<UpdateCheckCache>
+    const release = normalizeRelease(parsed.release)
+    if (!release) return null
+    return {
+      checkedAt: Number(parsed.checkedAt) || 0,
+      ...(typeof parsed.etag === 'string' && parsed.etag ? { etag: parsed.etag } : {}),
+      release
+    }
+  } catch {
+    return null
+  }
+}
+
+async function writeUpdateCache(cachePath: string, cache: UpdateCheckCache): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(cachePath), { recursive: true })
+    const tmp = cachePath + '.tmp'
+    await fs.writeFile(tmp, JSON.stringify(cache), 'utf8')
+    await fs.rename(tmp, cachePath)
+  } catch {
+    /* cache is best-effort */
+  }
+}
+
+function buildUpdateResult(
+  currentVersion: string,
+  release: GitHubRelease
+): UpdateCheckResult {
+  const latestVersion = String(release.tag_name || '').trim()
+  if (!latestVersion) return { ok: false, message: 'Release 信息缺少版本号' }
+  const assets = Array.isArray(release.assets) ? release.assets : []
+  const installer = selectInstallerAsset(assets)
+  const releaseUrl = release.html_url || RELEASES_PAGE
+  return {
+    ok: true,
+    info: {
+      currentVersion,
+      latestVersion,
+      publishedAt: release.published_at || '',
+      releaseName: release.name || undefined,
+      releaseUrl,
+      downloadUrl: installer?.url || releaseUrl,
+      ...(installer?.size === undefined ? {} : { downloadSize: installer.size }),
+      ...(installer?.sha256 === undefined ? {} : { downloadSha256: installer.sha256 }),
+      notes: (release.body || '').trim().slice(0, 1600) || undefined,
+      hasUpdate: compareVersions(currentVersion, latestVersion) < 0
+    }
+  }
+}
+
+function cachedUpdateResult(
+  currentVersion: string,
+  cache: UpdateCheckCache
+): UpdateCheckResult {
+  return {
+    ...buildUpdateResult(currentVersion, cache.release),
+    cached: true,
+    cachedAt: cache.checkedAt
+  }
+}
+
+function isRateLimited(response: Response): boolean {
+  return (
+    response.status === 429 ||
+    response.headers.get('x-ratelimit-remaining') === '0' ||
+    response.headers.has('retry-after')
+  )
+}
+
+function rateLimitMessage(response: Response): string {
+  const reset = Number(response.headers.get('x-ratelimit-reset'))
+  const retryAfter = Number(response.headers.get('retry-after'))
+  if (Number.isFinite(reset) && reset > 0) {
+    const at = new Date(reset * 1000).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+    return 'GitHub 接口请求已达上限（60 次/小时），预计 ' + at + ' 后恢复。'
+  }
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return 'GitHub 接口请求过于频繁，请约 ' + Math.ceil(retryAfter / 60) + ' 分钟后重试。'
+  }
+  return 'GitHub 接口请求已达上限，请稍后再试。'
 }
 
 async function fetchReleases(currentVersion: string): Promise<ReleaseNote[]> {
@@ -221,14 +342,49 @@ export async function getWhatsNew(
   }
 }
 
-export async function checkForUpdates(currentVersion: string): Promise<UpdateCheckResult> {
+export async function checkForUpdates(
+  currentVersion: string,
+  options: CheckUpdatesOptions = {}
+): Promise<UpdateCheckResult> {
+  const apiUrl = options.apiUrl || RELEASES_API
+  const cachePath = options.cacheDir
+    ? path.join(options.cacheDir, UPDATE_CACHE_FILE)
+    : null
+  const cached = cachePath ? await readUpdateCache(cachePath) : null
+
+  // 自动检查命中 10 分钟内的缓存时直接返回，避免高频启动消耗接口限额。
+  if (!options.force && cached && Date.now() - cached.checkedAt < UPDATE_CHECK_INTERVAL) {
+    return cachedUpdateResult(currentVersion, cached)
+  }
+
+  const requestHeaders = headers(currentVersion)
+  if (cached?.etag) requestHeaders['If-None-Match'] = cached.etag
+
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 20000)
   try {
-    const response = await fetch(RELEASES_API, {
-      headers: headers(currentVersion),
+    const response = await fetch(apiUrl, {
+      headers: requestHeaders,
       signal: controller.signal
     })
+
+    // 304 表示内容未变化，不消耗限额；刷新检查时间即可。
+    if (response.status === 304) {
+      if (!cached) return { ok: false, message: '检查更新失败（HTTP 304）' }
+      const checkedAt = Date.now()
+      const etag = response.headers.get('etag') || cached.etag
+      const next: UpdateCheckCache = {
+        checkedAt,
+        release: cached.release,
+        ...(etag ? { etag } : {})
+      }
+      if (cachePath) await writeUpdateCache(cachePath, next)
+      return {
+        ...buildUpdateResult(currentVersion, cached.release),
+        cached: true,
+        cachedAt: checkedAt
+      }
+    }
 
     if (response.status === 404) {
       return {
@@ -237,39 +393,36 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
         message: '项目暂未发布 Release'
       }
     }
+
     if (!response.ok) {
+      // 限额或服务异常时优先使用最近一次缓存，避免把可用的旧结果变成报错。
+      if (cached) return cachedUpdateResult(currentVersion, cached)
       return {
         ok: false,
-        message: '检查更新失败（HTTP ' + response.status + '）'
+        message: isRateLimited(response)
+          ? rateLimitMessage(response)
+          : '检查更新失败（HTTP ' + response.status + '）'
       }
     }
 
-    const data = (await response.json()) as GitHubRelease
-    const latestVersion = String(data.tag_name || '').trim()
-    if (!latestVersion) {
+    const release = normalizeRelease((await response.json()) as unknown)
+    if (!release) {
+      if (cached) return cachedUpdateResult(currentVersion, cached)
       return { ok: false, message: 'Release 信息缺少版本号' }
     }
 
-    const assets = Array.isArray(data.assets) ? data.assets : []
-    const installer = selectInstallerAsset(assets)
-    const releaseUrl = data.html_url || RELEASES_PAGE
-
-    return {
-      ok: true,
-      info: {
-        currentVersion,
-        latestVersion,
-        publishedAt: data.published_at || '',
-        releaseName: data.name || undefined,
-        releaseUrl,
-        downloadUrl: installer?.url || releaseUrl,
-        ...(installer?.size === undefined ? {} : { downloadSize: installer.size }),
-        ...(installer?.sha256 === undefined ? {} : { downloadSha256: installer.sha256 }),
-        notes: (data.body || '').trim().slice(0, 1600) || undefined,
-        hasUpdate: compareVersions(currentVersion, latestVersion) < 0
-      }
+    const checkedAt = Date.now()
+    const etag = response.headers.get('etag') || undefined
+    if (cachePath) {
+      await writeUpdateCache(cachePath, {
+        checkedAt,
+        ...(etag ? { etag } : {}),
+        release
+      })
     }
+    return buildUpdateResult(currentVersion, release)
   } catch (error) {
+    if (cached) return cachedUpdateResult(currentVersion, cached)
     const aborted =
       error instanceof Error &&
       (error.name === 'AbortError' || error.message.toLowerCase().includes('abort'))

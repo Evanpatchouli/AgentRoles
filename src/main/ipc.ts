@@ -171,7 +171,9 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle('app:state', () => deps.getState())
 
-  ipcMain.handle('updates:check', () => checkForUpdates(app.getVersion()))
+  ipcMain.handle('updates:check', () =>
+    checkForUpdates(app.getVersion(), { cacheDir: store.dataDir, force: true })
+  )
 
   ipcMain.handle('updates:install', (event) => {
     if (updateInstallTask) return updateInstallTask
@@ -187,7 +189,10 @@ export function registerIpc(deps: IpcDeps): void {
         return { ok: false, message: '当前平台暂不支持自动安装更新。' }
       }
       // 安装前重新校验版本，避免使用渲染层缓存的过期信息。
-      const check = await checkForUpdates(app.getVersion())
+      const check = await checkForUpdates(app.getVersion(), {
+        cacheDir: store.dataDir,
+        force: true
+      })
       if (!check.ok || !check.info) {
         return { ok: false, message: check.message || '检查更新失败，请稍后重试' }
       }
