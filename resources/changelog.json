@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "version": "0.1.5",
+      "name": "AgentRoles v0.1.5",
+      "publishedAt": "2026-11-17",
+      "body": "### 修复\n\n- 更新窗口的版本说明改为按 Markdown 渲染，标题、列表与链接不再显示原始符号\n- 更新说明区域保留滚动，过长内容不会撑高窗口\n\n### 注意\n\n- 安装包未签名，Windows 可能提示未知发布者\n- 自动更新会静默安装并重启应用；也可以直接下载下方安装包手动升级",
+      "htmlUrl": "https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.5",
+      "prerelease": false
+    },
+    {
       "version": "0.1.4",
       "name": "AgentRoles v0.1.4",
       "publishedAt": "2026-11-17",
