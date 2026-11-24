@@ -99,7 +99,7 @@ npm run dist:win    # 与 release 等价
 - 帮助：新功能展示版本更新记录；检查更新会读取 GitHub 最新 Release，有新版可直接「立即更新」（下载、校验、静默安装并重启）；反馈会打开 GitHub Issues；关于显示项目名称、发布日期、版本与简介
 - 关闭：关闭当前窗口，但应用继续在系统托盘驻留，Agent 与外部接入不会中断
 
-托盘菜单可以重新打开主窗口、新建窗口或退出应用。
+托盘菜单可以重新打开主窗口、新建窗口或退出应用。悬浮托盘图标显示应用名与工作台说明，有会话运行时补充运行中的会话数。
 
 ## 新功能与更新记录
 
@@ -265,7 +265,7 @@ E2E 测试会使用临时 `userData`，不会污染你的真实配置。
 「检查更新」读取 GitHub Releases 的 latest，每次启动也会自动检查一次。发布时请：
 
 1. 将 `package.json` 的 `version` 与 `releaseDate` 提升到新版本。
-2. 创建对应 tag（例如 `v0.1.6`）的 GitHub Release。
+2. 创建对应 tag（例如 `v0.1.7`）的 GitHub Release。
 3. 上传 setup `.exe` 安装包；自动更新会下载、校验 SHA-256 后静默安装并重启。
 4. 保证 Release 的 tag 版本高于当前 `package.json` 版本，且资产带有 GitHub 生成的 `digest`。
 

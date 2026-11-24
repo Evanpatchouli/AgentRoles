@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "version": "0.1.7",
+      "name": "AgentRoles v0.1.7",
+      "publishedAt": "2026-11-24",
+      "body": "### 修复\n\n- 修复 Windows 资源管理器重启后托盘图标丢失悬浮提示的问题（Electron 升级到 45.4.1）\n\n### 改进\n\n- 托盘悬浮提示补充工作台说明，并显示运行中的会话数\n\n### 注意\n\n- 安装包未签名，Windows 可能提示未知发布者\n- 自动更新会静默安装并重启应用；也可以直接下载下方安装包手动升级",
+      "htmlUrl": "https://github.com/Evanpatchouli/AgentRoles/releases/tag/v0.1.7",
+      "prerelease": false
+    },
+    {
       "version": "0.1.6",
       "name": "AgentRoles v0.1.6",
       "publishedAt": "2026-11-17",

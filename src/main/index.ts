@@ -45,6 +45,26 @@ function broadcast(event: AgentEvent): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send('agent:event', event)
   }
+  // 托盘悬浮提示随运行中的会话数变化，只在状态事件上刷新，避免每个流式分片都计算一次。
+  if (event.type === 'agent_state') refreshTrayToolTip()
+}
+
+let trayToolTipText = ''
+
+/** 托盘悬浮提示：应用名 + 工作台说明，有会话运行时补充数量。 */
+function trayToolTip(): string {
+  const states = manager.getRuntimeStates()
+  const running = Object.values(states).filter((state) => state.running).length
+  const base = 'AgentRoles · 多角色 Agent 工作台'
+  return running > 0 ? base + '（' + running + ' 个会话运行中）' : base
+}
+
+function refreshTrayToolTip(): void {
+  if (!tray || tray.isDestroyed()) return
+  const text = trayToolTip()
+  if (text === trayToolTipText) return
+  trayToolTipText = text
+  tray.setToolTip(text)
 }
 
 function getState(): AppState {
@@ -232,7 +252,8 @@ function createTray(): void {
       return
     }
     tray = new Tray(icon.resize({ width: 16, height: 16 }))
-    tray.setToolTip('AgentRoles')
+    trayToolTipText = ''
+    refreshTrayToolTip()
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: '打开主窗口', click: focusOrCreateWindow },

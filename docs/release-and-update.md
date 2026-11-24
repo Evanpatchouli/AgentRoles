@@ -2,8 +2,8 @@
 
 本文说明 AgentRoles 的版本发布、GitHub Release、检查更新、应用内自动更新和新功能记录机制。
 
-- 适用版本：AgentRoles v0.1.6
-- 最后验证：2026-11-17
+- 适用版本：AgentRoles v0.1.7
+- 最后验证：2026-11-24
 - 相关文档：[文档索引](README.md) · [MCP 接入](mcp.md) · [故障排查](troubleshooting.md)
 
 ## 1. 版本号与发布日期
@@ -14,8 +14,8 @@
 
 ~~~json
 {
-  "version": "0.1.6",
-  "releaseDate": "2026-11-17"
+  "version": "0.1.7",
+  "releaseDate": "2026-11-24"
 }
 ~~~
 
@@ -40,7 +40,7 @@ https://api.github.com/repos/Evanpatchouli/AgentRoles/releases?per_page=20
 发布时：
 
 1. 将 `package.json` 的 `version` 提升到新版本
-2. 创建对应 tag，例如 `v0.1.6`
+2. 创建对应 tag，例如 `v0.1.7`
 3. 创建 GitHub Release（不要只创建 tag）
 4. 上传 setup `.exe` 安装包
 5. 在 Release body 中写更新说明
@@ -162,11 +162,11 @@ npm run release
 5. 为 `.exe` 与 `.blockmap` 生成 `SHA256SUMS.txt`
 6. 打印产物大小与后续发布命令
 
-产物示例（`release/0.1.6/`）：
+产物示例（`release/0.1.7/`）：
 
 ~~~text
-AgentRoles.Setup.0.1.6.exe
-AgentRoles.Setup.0.1.6.exe.blockmap
+AgentRoles.Setup.0.1.7.exe
+AgentRoles.Setup.0.1.7.exe.blockmap
 SHA256SUMS.txt
 latest.yml
 win-unpacked/
@@ -179,11 +179,11 @@ win-unpacked/
 ~~~bash
 npm run release
 git add -A
-git commit -m "chore(release): 发布 v0.1.6"
-git tag v0.1.6
+git commit -m "chore(release): 发布 v0.1.7"
+git tag v0.1.7
 git push origin main --tags
-gh release create v0.1.6 release/0.1.6/AgentRoles.Setup.0.1.6.exe \
-  --title "AgentRoles v0.1.6" --notes-file notes.md
+gh release create v0.1.7 release/0.1.7/AgentRoles.Setup.0.1.7.exe \
+  --title "AgentRoles v0.1.7" --notes-file notes.md
 ~~~
 
 发布后确认：
@@ -247,7 +247,7 @@ npm run release
 | 现象 | 检查 |
 | --- | --- |
 | 一直提示暂无 Release | 是否创建了 GitHub Release，而不是只有 tag |
-| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.6` |
+| 有 Release 但检查不到 | tag 是否为可比较的语义化版本，例如 `v0.1.7` |
 | 新功能显示内置说明 | Release 列表为空、离线或接口失败；可点刷新 |
 | 点击立即更新提示缺少 SHA-256 摘要 | Release 资产没有 `digest`；重新上传资产或重新创建 Release |
 | 下载后校验失败 | 资产被替换、代理改写内容或下载不完整；重试或重新上传 |
